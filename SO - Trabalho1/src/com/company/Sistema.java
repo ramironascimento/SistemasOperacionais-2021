@@ -28,7 +28,7 @@ public class Sistema {
 
 	// -------------------------------------------------------------------------------------------------------
     // --------------------- C P U  -  definicoes da CPU -----------------------------------------------------
-
+	// -------------------------------------------------------------------------------------------------------
 	public enum Opcode {
 		DATA, ___,		    // se memoria nesta posicao tem um dado, usa DATA, se nao usada ee NULO ___
 		JMP, JMPI, JMPIG, JMPIL, JMPIE,  JMPIM, JMPIGM, JMPILM, JMPIEM, STOP,   // desvios e parada
@@ -59,6 +59,11 @@ public class Sistema {
 					ir = m[pc]; 	// busca posicao da memoria apontada por pc, guarda em ir
 				// EXECUTA INSTRUCAO NO ir
 					switch (ir.opc) { // para cada opcode, sua execução
+
+						case LDD: // Rd ← [A]
+							reg[ir.r1] = m[ir.p].p;
+							pc++;
+							break;
 
 						case LDI: // Rd ← k
 							reg[ir.r1] = ir.p;
@@ -92,8 +97,34 @@ public class Sistema {
 							pc++;
 							break;
 
+						case SUBI: // Rd ← Rd – k
+							reg[ir.r1] = reg[ir.r1] - ir.p;
+							pc++;
+							break;
+
+						case MULT: // Rd ← Rd * Rs
+							reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
+							pc++;
+							break;
+
 						case JMPIG: // If Rc > 0 Then PC ← Rs Else PC ← PC +1
 							if (reg[ir.r2] > 0) {
+								pc = reg[ir.r1];
+							} else {
+								pc++;
+							}
+							break;
+
+						case JMPIGM: // if Rc > 0 then PC ← [A] Else PC ← PC +1
+							if (reg[ir.r2] > 0) {
+								pc = ir.p;
+							} else {
+								pc++;
+							}
+							break;
+
+						case JMPIL: //if Rc < 0 then PC ← Rs Else PC ← PC +1
+							if (reg[ir.r2] < 0) {
 								pc = reg[ir.r1];
 							} else {
 								pc++;
@@ -111,6 +142,7 @@ public class Sistema {
 			}
 		}
 	}
+
     // ------------------ C P U - fim ------------------------------------------------------------------------
 	// -------------------------------------------------------------------------------------------------------
 
@@ -131,6 +163,7 @@ public class Sistema {
 			 cpu = new CPU(m);
 	    }
 	}
+
     // ------------------- V M  - fim ------------------------------------------------------------------------
 	// -------------------------------------------------------------------------------------------------------
 
@@ -161,8 +194,10 @@ public class Sistema {
     // ------------------- instancia e testa sistema
 	public static void main(String args[]) {
 		Sistema s = new Sistema();
-		s.test2();
-		s.test1();
+		//s.test2();
+		//s.test1();
+		s.test_p3();
+
 	}
     // -------------------------------------------------------------------------------------------------------
     // --------------- TUDO ABAIXO DE MAIN É AUXILIAR PARA FUNCIONAMENTO DO SISTEMA - nao faz parte
@@ -190,7 +225,24 @@ public class Sistema {
 		System.out.println("---------------------------------- após execucao ");
 		vm.cpu.run();
 		aux.dump(vm.m, 0, 15);
+
 	}
+
+	// teste p3
+
+	public void test_p3(){
+		Aux aux = new Aux();
+		Word[] p = new Programas().p3;
+		aux.carga(p, vm.m);
+		vm.cpu.setContext(0);
+		System.out.println("---------------------------------- programa carregado ");
+		aux.dump(vm.m, 0, 15);
+		System.out.println("---------------------------------- após execucao ");
+		vm.cpu.run();
+		aux.dump(vm.m, 0, 15);
+
+	}
+
 
 	// -------------------------------------------  classes e funcoes auxiliares
     public class Aux {
@@ -245,27 +297,28 @@ public class Sistema {
 			new Word(Opcode.STOP, -1, -1, -1) };
 
 	   public Word[] p3 = new Word[]{
-		   new Word(Opcode.LDI, 1, -1, 10), // joga o valor 10 no Registrador1
-		   new Word(Opcode.STD, 1, -1, 20) // coloca o valor do Registrado1 na posição 20 da memoria
+/*1 */       new Word(Opcode.LDI, 1, -1, -1), // joga o valor 10 no Registrador1
+/*2 */		 new Word(Opcode.STD, 1, -1, 20), // coloca o valor do Registrado1 na posição 20 da memoria
+/*3 */		 new Word(Opcode.LDD,2,-1,20), // ler da memoria e colocar no registrador
+/*4 */		 new Word(Opcode.JMPIL,13,2,-1),// comparar se registrador < 0
 
-		   //Word(Opcode.LDD )
-		   // ler da memoria e colocar no registrador
-		   // comparar se registrador < 0
-		   // se for true
-		   // armazena -1, registrador
-		   // se false
-		   // r1 = 10
-		   // r2 = 10
-		   // sub i (r2,1)
+/*5 */		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
+			 // inicio loop
+/*6 */		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
 
-		   // add i (r2,1) -- linha x
+/*7 */		 new Word(Opcode.SUBI,2,-1,1), //subtrai pra fazer r1*r2
 
-		   // sub i (r2,1)
-		   // mult  (r1,r2)
+/*8 */		 new Word(Opcode.MULT,1,2,-1), //multiplica
 
-		   // sub i (r2,1)
-		   // jmpigm(r2,x)
-		   // std(r2,21)
+/*9 */		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
+/*10 */		 new Word(Opcode.JMPIGM,-1,2,6),	// compara a zero para ver se precisa parar   x = 6
+			 // fim loop
+
+/*11*/		 new Word(Opcode.STD,1,-1,20), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
+/*12*/		 new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
+/*13*/       new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
+/*14*/       new Word(Opcode.STD,1,-1,20), // armazena no valor de r1 na posicao 20 da memoria
+/*15*/       new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
 		   };
    }
 }
