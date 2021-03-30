@@ -197,53 +197,65 @@ public class Sistema {
 							break;
 
 						case JMPIGM: // if R2 > 0 then PC ← [A] Else PC ← PC +1
-							if (reg[ir.r2] > 0) {
-								//tratamento de erro
-								if(m[ir.p].opc == Opcode.___)
-								{
-									ir.interruption = 2;
+							if (Registrador_Valido(ir.r2)) {
+								if (reg[ir.r2] > 0) {
+									//tratamento de erro
+									if (m[ir.p].opc == Opcode.___) {
+										ir.interruption = 2;
+									}
+									//execucao
+									else {
+										pc = ir.p;
+									}
+								} else {
+									pc++;
 								}
-								//execucao
-								else
-								{
-									pc = ir.p;
-								}
-							} else {
-								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
 							}
 							break;
 
 						case JMPILM: //if R2 < 0 then PC ← [A] Else PC ← PC +1
-							if (reg[ir.r2] < 0) {
-								//tratamento de erro
-								if(m[ir.p].opc == Opcode.___)
-								{
-									ir.interruption = 2;
+							if (Registrador_Valido(ir.r2)) {
+								if (reg[ir.r2] < 0) {
+									//tratamento de erro
+									if (m[ir.p].opc == Opcode.___) {
+										ir.interruption = 2;
+									}
+									//execucao
+									else {
+										pc = ir.p;
+									}
+								} else {
+									pc++;
 								}
-								//execucao
-								else
-								{
-									pc = ir.p;
-								}
-							} else {
-								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
 							}
 							break;
 
 						case JMPIEM: //if R2 == 0 then PC ← [A] Else PC ← PC +1
-							if (reg[ir.r2] == 0) {
-								//tratamento de erro
-								if(m[ir.p].opc == Opcode.___)
-								{
-									ir.interruption = 2;
+							if (Registrador_Valido(ir.r2)) {
+								if (reg[ir.r2] == 0) {
+									//tratamento de erro
+									if (m[ir.p].opc == Opcode.___) {
+										ir.interruption = 2;
+									}
+									//execucao
+									else {
+										pc = ir.p;
+									}
+								} else {
+									pc++;
 								}
-								//execucao
-								else
-								{
-									pc = ir.p;
-								}
-							} else {
-								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
 							}
 							break;
 
@@ -253,116 +265,170 @@ public class Sistema {
 
 						case ADDI: // R1 ← R1 + k
 							//tramento erro
-							sum = reg[ir.r1] + ir.p;
-							if (sum > Integer.MAX_VALUE)
-							{
-								ir.interruption = 1;
+							if (Registrador_Valido(ir.r1)) {
+								sum = reg[ir.r1] + ir.p;
+								if (sum > Integer.MAX_VALUE) {
+									ir.interruption = 1;
+								}
+								//execucao
+								else {
+									reg[ir.r1] = reg[ir.r1] + ir.p;
+									pc++;
+								}
 							}
-							//execucao
 							else
 							{
-								reg[ir.r1] = reg[ir.r1] + ir.p;
+								ir.interruption = 2;
 							}
-							pc++;
 							break;
 
 						case SUBI: // R1 ← R1 – k
 							//tratamento erro
-							sub = reg[ir.r1] - ir.p;
-							if (sub < Integer.MIN_VALUE)
-							{
-								ir.interruption = 1;
+							if (Registrador_Valido(ir.r1)) {
+								sub = reg[ir.r1] - ir.p;
+								if (sub < Integer.MIN_VALUE) {
+									ir.interruption = 1;
+								}
+								//execucao
+								else {
+									reg[ir.r1] = reg[ir.r1] - ir.p;
+									pc++;
+								}
 							}
-							//execucao
 							else
 							{
-								reg[ir.r1] = reg[ir.r1] - ir.p;
+								ir.interruption = 2;
 							}
-
-							pc++;
 							break;
 
 						case ADD: // R1 ← R1 + R2
 							//tratamento erro
-							sum = reg[ir.r1] + reg[ir.r2];
-							if (sum > Integer.MAX_VALUE)
-							{
-								ir.interruption = 1;
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
+								sum = reg[ir.r1] + reg[ir.r2];
+								if (sum > Integer.MAX_VALUE) {
+									ir.interruption = 1;
+								}
+								//execucao
+								else {
+									reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
+									pc++;
+								}
 							}
-							//execucao
 							else
 							{
-								reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
+								ir.interruption = 2;
 							}
-							pc++;
 							break;
 
 						case SUB: // R1 ← R1 - R2
 							//tratamento erro
-							sub = reg[ir.r1] - reg[ir.r2];
-							if (sub < Integer.MIN_VALUE)
-							{
-								ir.interruption = 1;
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
+								sub = reg[ir.r1] - reg[ir.r2];
+								if (sub < Integer.MIN_VALUE) {
+									ir.interruption = 1;
+								}
+								//execucao
+								else {
+									reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
+									pc++;
+								}
 							}
-							//execucao
 							else
 							{
-								reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
+								ir.interruption =2;
 							}
-							pc++;
 							break;
 
 						case MULT: // R1 ← R1 * R2
 							//tratamento erro
-							sum = reg[ir.r1] * reg[ir.r2];
-							if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE)
-							{
-								ir.interruption = 1;
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
+								sum = reg[ir.r1] * reg[ir.r2];
+								if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) {
+									ir.interruption = 1;
+								}
+								//execucao
+								else {
+									reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
+									pc++;
+								}
 							}
-							//execucao
 							else
 							{
-								reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
+								ir.interruption = 2;
 							}
-							pc++;
 							break;
 
 
 						case LDI: // R1 ← k
-							if (ir.r1 > reg.length)
+							if (Registrador_Valido(ir.r1)) {
+								reg[ir.r1] = ir.p;
+								pc++;
+							}
+							else
 							{
 								ir.interruption = 2;
 							}
-							reg[ir.r1] = ir.p;
-							pc++;
 							break;
 
 						case LDD: // R1 ← [A]
 							//validacao
-							reg[ir.r1] = m[ir.p].p;
-							pc++;
+							if (Registrador_Valido(ir.r1)) {
+								reg[ir.r1] = m[ir.p].p;
+								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
+							}
 							break;
 
 						case STD: // [A] ← R1
-							m[ir.p].opc = Opcode.DATA;
-							m[ir.p].p = reg[ir.r1];
-							pc++;
+							if (Registrador_Valido(ir.r1)) {
+								m[ir.p].opc = Opcode.DATA;
+								m[ir.p].p = reg[ir.r1];
+								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
+							}
 							break;
 
-						case LDX: // R1 ← [R1]
-							reg[ir.r1] = m[reg[ir.r2]].p;
+						case LDX: // R1 ← [R2]
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
+								reg[ir.r1] = m[reg[ir.r2]].p;
+								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
+							}
 							break;
 
-						case STX: // [R1] ←R2
-							m[reg[ir.r1]].opc = Opcode.DATA;
-							m[reg[ir.r1]].p = reg[ir.r2];
-							pc++;
+						case STX: // [R1] ← R2
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
+								m[reg[ir.r1]].opc = Opcode.DATA;
+								m[reg[ir.r1]].p = reg[ir.r2];
+								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
+							}
 							break;
 
 						case SWAP: //T ← Ra Ra ← Rb Rb ←T
-							int t = reg[ir.r1];
-							reg[ir.r1] = reg[ir.r2];
-							reg[ir.r2] = t;
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
+								int t = reg[ir.r1];
+								reg[ir.r1] = reg[ir.r2];
+								reg[ir.r2] = t;
+								pc++;
+							}
+							else
+							{
+								ir.interruption = 2;
+							}
+
 							break;
 
 						default:
@@ -638,13 +704,14 @@ public class Sistema {
 			new Word(Opcode.STOP, -1, -1, -1) };
 
 	   public Word[] p3 = new Word[]{
-/*1 */       new Word(Opcode.LDI, 1, -1, -1), // joga o valor 10 no Registrador1
+/*1 */       new Word(Opcode.LDI, 1, -1, 10), // joga o valor 10 no Registrador1
 /*2 */		 new Word(Opcode.STD, 1, -1, 20), // coloca o valor do Registrado1 na posição 20 da memoria
 /*3 */		 new Word(Opcode.LDD,2,-1,20), // ler da memoria e colocar no registrador
-/*4 */		 new Word(Opcode.LDI, 0,-1,13),
+/*4 */		 new Word(Opcode.LDI, 0,-1,15),
 /*5 */		 new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
 
 /*6 */		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
+
 			 // inicio loop
 /*7 */		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
 
