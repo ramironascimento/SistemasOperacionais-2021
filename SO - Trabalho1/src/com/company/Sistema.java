@@ -5,7 +5,6 @@ package com.company;// PUCRS - Escola Politécnica - Sistemas Operacionais
 // Fase 1 - máquina virtual (vide enunciado correspondente)
 //
 
-import java.util.Objects;
 import java.util.Scanner;
 
 //TODO BACKLOG testar tudo com programas teste
@@ -69,8 +68,6 @@ public class Sistema {
 				//TODO DOING validar se os registradores usados em casa operação existe (fazer metodo pra isso)
 				long sum = 0;
 				long sub = 0;
-
-
 					switch (ir.opc) { // para cada opcode, sua execução
 
 						case TRAP:
@@ -99,9 +96,9 @@ public class Sistema {
 							}
 							break;
 
-						case JMPI: //PC ← Rs
+						case JMPI: //PC ← R1
 							//tratamento de erro
-							if(m[reg[ir.r1]].opc == Opcode.___)
+							if (Registrador_Valido(ir.r1) || m[reg[ir.r1]].opc == Opcode.___)
 							{
 								ir.interruption = 2;
 							}
@@ -110,61 +107,79 @@ public class Sistema {
 							{
 								pc = reg[ir.r1];
 							}
-
 							break;
 
-						case JMPIG: // If Rc > 0 Then PC ← Rs Else PC ← PC +1
-							if (reg[ir.r2] > 0)
+						case JMPIG: // If R2 > 0 Then PC ← R1 Else PC ← PC +1
+							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2))
 							{
-								//tratamento de erro
-								if(m[reg[ir.r1]].opc == Opcode.___)
+								if (reg[ir.r2] > 0)
 								{
-									ir.interruption = 2;
+									//tratamento de erro
+									if (m[reg[ir.r1]].opc == Opcode.___)
+									{
+										ir.interruption = 2;
+									}
+									//execucao
+									else
+									{
+										pc = reg[ir.r1];
+									}
 								}
-								//execucao
-								else
-								{
-									pc = reg[ir.r1];
+								else {
+									pc++;
 								}
 							}
 							else
 							{
-								pc++;
+								ir.interruption = 2;
 							}
 							break;
 
-
-						case JMPIL: //if Rc < 0 then PC ← Rs Else PC ← PC +1
-							if (reg[ir.r2] < 0) {
-								//tratamento de erro
-								if(m[reg[ir.r1]].opc == Opcode.___)
+						case JMPIL: //if R2 < 0 then PC ← R1 Else PC ← PC +1
+							if (Registrador_Valido(ir.r2))
+							{
+								if (reg[ir.r2] < 0)
 								{
-									ir.interruption = 2;
+									//tratamento de erro
+									if(m[reg[ir.r1]].opc == Opcode.___)
+									{
+										ir.interruption = 2;
+									}
+									//execucao
+									else
+									{
+										pc = reg[ir.r1];
+									}
 								}
-								//execucao
 								else
 								{
-									pc = reg[ir.r1];
+									pc++;
 								}
-							} else {
-								pc++;
 							}
+							else
+							{
+								ir.interruption = 2;
+							}
+
 							break;
 
-						case JMPIE: //if Rc == 0 then PC ← Rs Else PC ← PC +1
-							if (reg[ir.r2] == 0) {
-								//tratamento de erro
-								if(m[reg[ir.r1]].opc == Opcode.___)
-								{
-									ir.interruption = 2;
+						case JMPIE: //if R2 == 0 then PC ← R1 Else PC ← PC +1
+							if ( Registrador_Valido(ir.r2)) {
+								if (reg[ir.r2] == 0) {
+									//tratamento de erro
+									if (m[reg[ir.r1]].opc == Opcode.___) {
+										ir.interruption = 2;
+									}
+									//execucao
+									else {
+										pc = reg[ir.r1];
+									}
+								} else {
+									pc++;
 								}
-								//execucao
-								else
-								{
-									pc = reg[ir.r1];
-								}
-							} else {
-								pc++;
+							}
+							else{
+								ir.interruption = 2;
 							}
 							break;
 
@@ -181,7 +196,7 @@ public class Sistema {
 							}
 							break;
 
-						case JMPIGM: // if Rc > 0 then PC ← [A] Else PC ← PC +1
+						case JMPIGM: // if R2 > 0 then PC ← [A] Else PC ← PC +1
 							if (reg[ir.r2] > 0) {
 								//tratamento de erro
 								if(m[ir.p].opc == Opcode.___)
@@ -198,7 +213,7 @@ public class Sistema {
 							}
 							break;
 
-						case JMPILM: //if Rc < 0 then PC ← [A] Else PC ← PC +1
+						case JMPILM: //if R2 < 0 then PC ← [A] Else PC ← PC +1
 							if (reg[ir.r2] < 0) {
 								//tratamento de erro
 								if(m[ir.p].opc == Opcode.___)
@@ -215,7 +230,7 @@ public class Sistema {
 							}
 							break;
 
-						case JMPIEM: //if Rc == 0 then PC ← [A] Else PC ← PC +1
+						case JMPIEM: //if R2 == 0 then PC ← [A] Else PC ← PC +1
 							if (reg[ir.r2] == 0) {
 								//tratamento de erro
 								if(m[ir.p].opc == Opcode.___)
@@ -236,7 +251,7 @@ public class Sistema {
 							ir.interruption = 4;
 							break;
 
-						case ADDI: // Rd ← Rd + k
+						case ADDI: // R1 ← R1 + k
 							//tramento erro
 							sum = reg[ir.r1] + ir.p;
 							if (sum > Integer.MAX_VALUE)
@@ -251,7 +266,7 @@ public class Sistema {
 							pc++;
 							break;
 
-						case SUBI: // Rd ← Rd – k
+						case SUBI: // R1 ← R1 – k
 							//tratamento erro
 							sub = reg[ir.r1] - ir.p;
 							if (sub < Integer.MIN_VALUE)
@@ -267,7 +282,7 @@ public class Sistema {
 							pc++;
 							break;
 
-						case ADD: // Rd ← Rd + Rs
+						case ADD: // R1 ← R1 + R2
 							//tratamento erro
 							sum = reg[ir.r1] + reg[ir.r2];
 							if (sum > Integer.MAX_VALUE)
@@ -282,7 +297,7 @@ public class Sistema {
 							pc++;
 							break;
 
-						case SUB: // Rd ← Rd - Rs
+						case SUB: // R1 ← R1 - R2
 							//tratamento erro
 							sub = reg[ir.r1] - reg[ir.r2];
 							if (sub < Integer.MIN_VALUE)
@@ -297,7 +312,7 @@ public class Sistema {
 							pc++;
 							break;
 
-						case MULT: // Rd ← Rd * Rs
+						case MULT: // R1 ← R1 * R2
 							//tratamento erro
 							sum = reg[ir.r1] * reg[ir.r2];
 							if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE)
@@ -313,7 +328,7 @@ public class Sistema {
 							break;
 
 
-						case LDI: // Rd ← k
+						case LDI: // R1 ← k
 							if (ir.r1 > reg.length)
 							{
 								ir.interruption = 2;
@@ -322,23 +337,23 @@ public class Sistema {
 							pc++;
 							break;
 
-						case LDD: // Rd ← [A]
+						case LDD: // R1 ← [A]
 							//validacao
 							reg[ir.r1] = m[ir.p].p;
 							pc++;
 							break;
 
-						case STD: // [A] ← Rs
+						case STD: // [A] ← R1
 							m[ir.p].opc = Opcode.DATA;
 							m[ir.p].p = reg[ir.r1];
 							pc++;
 							break;
 
-						case LDX: // Rd ← [Rs]
+						case LDX: // R1 ← [R1]
 							reg[ir.r1] = m[reg[ir.r2]].p;
 							break;
 
-						case STX: // [Rd] ←Rs
+						case STX: // [R1] ←R2
 							m[reg[ir.r1]].opc = Opcode.DATA;
 							m[reg[ir.r1]].p = reg[ir.r2];
 							pc++;
@@ -360,22 +375,22 @@ public class Sistema {
 				{
 					if (ir.interruption == 1) //Overflow em uma operacao aritmetica
 					{
-						Tratamento_Overflow();
+						Tratamento_Overflow(ir);
 						break;
 					}
 					else if (ir.interruption == 2) //acessou um endereço invalido de memoria (ArrayOutOfBound)
 					{
-						Tratamento_Endereco_Invalido();
+						Tratamento_Endereco_Invalido(ir);
 						break;
 					}
 					else if (ir.interruption == 3) //Intrucao Invalida
 					{
-						Tratamento_Opcode_Invalido();
+						Tratamento_Opcode_Invalido(ir);
 						break;
 					}
 					else if (ir.interruption == 4) //opcode STOP em sí
 					{
-						Trtamento_STOP();
+						Tratamento_STOP(ir);
 						break;
 					}
 
@@ -417,21 +432,46 @@ public class Sistema {
 	// ------------------- S O F T W A R E - inicio ----------------------------------------------------------
 
 
-	public void Tratamento_Overflow()
+	public void Tratamento_Overflow(Word w)
 	{
-		//TODO BACKLOG msg de erro (system.out)
+		System.out.print("**Erro na intrução: "); System.out.print("[ ");
+		System.out.println("[ ");
+		System.out.print(w.opc); System.out.print(", ");
+		System.out.print(w.r1);  System.out.print(", ");
+		System.out.print(w.r2);  System.out.print(", ");
+		System.out.print(w.p);  System.out.println("  ] ");
+
+		System.out.println("Houve Overflow na operação aritmética");
 	}
-	public void Tratamento_Opcode_Invalido()
+	public void Tratamento_Opcode_Invalido(Word w)
 	{
-		//TODO BACKLOG msg de erro (system.out)
+		System.out.print("**Erro na intrução: "); System.out.print("[ ");
+		System.out.print(w.opc); System.out.print(", ");
+		System.out.print(w.r1);  System.out.print(", ");
+		System.out.print(w.r2);  System.out.print(", ");
+		System.out.print(w.p);  System.out.println("  ] ");
+
+		System.out.println("Operação " + "[ " + w.opc + " ]" + " nao identificada.");
 	}
-	public void Tratamento_Endereco_Invalido()
+	public void Tratamento_Endereco_Invalido(Word w)
 	{
-		//TODO BACKLOG msg de erro (system.out)
+		System.out.print("**Erro na intrução: [ ");
+		System.out.print(w.opc); System.out.print(", ");
+		System.out.print(w.r1);  System.out.print(", ");
+		System.out.print(w.r2);  System.out.print(", ");
+		System.out.print(w.p);  System.out.println("  ] ");
+
+		System.out.println("O endereço de memória ou registrador referenciado não existe.");
 	}
-	public void Trtamento_STOP()
+	public void Tratamento_STOP(Word w)
 	{
-		//TODO BACKLOG dizer que está encerrando o programa a ser executado (system.out)
+		System.out.println("---------------------------------- fim do programa ");
+	}
+
+
+	public boolean Registrador_Valido(int reg_n)
+	{
+		return (reg_n >=0 && reg_n <=9);
 	}
 
 
@@ -455,12 +495,50 @@ public class Sistema {
     // ------------------- instancia e testa sistema
 	public static void main(String args[]) {
 		Sistema s = new Sistema();
-		//TODO BACKLOG while loop com menu perguntando pro usuário qual programa ele quer executar.
-		//s.test1();
-		//s.test2();
-		s.test_p3();
+		//TODO DONE while loop com menu perguntando pro usuário qual programa ele quer executar.
+		menu_main(s);
 
 	}
+
+	public static void menu_main(Sistema s)
+	{
+		int opcao_menu = -1;
+		Scanner teclado = new Scanner(System.in);
+		do{
+			System.out.println("--------- ESCOLHA O PROGRAMA ---------");
+			System.out.println(" [1] - ProgMin");
+			System.out.println(" [2] - Fibonacci");
+			System.out.println(" [3] - Fatorial");
+			System.out.println(" [4] - BubbleSort");
+			System.out.println(" [0] - Sair");
+			opcao_menu = teclado.nextInt();
+
+			switch (opcao_menu) {
+				case 0:
+					System.out.println("---------------------------------- fim sistema ");
+					break;
+				case 1:
+					s.test1();
+					break;
+				case 2:
+					s.test2();
+					break;
+				case 3:
+					s.test_p3();
+					break;
+				case 4:
+					//TODO BACKLOG adicionar o BubbleSort aqui
+					break;
+				default:
+					System.out.println(" Opcao invalida, tente novamente.");
+					break;
+			}
+
+		} while (opcao_menu != 0);
+	}
+
+
+
     // -------------------------------------------------------------------------------------------------------
     // --------------- TUDO ABAIXO DE MAIN É AUXILIAR PARA FUNCIONAMENTO DO SISTEMA - nao faz parte
 
@@ -563,25 +641,26 @@ public class Sistema {
 /*1 */       new Word(Opcode.LDI, 1, -1, -1), // joga o valor 10 no Registrador1
 /*2 */		 new Word(Opcode.STD, 1, -1, 20), // coloca o valor do Registrado1 na posição 20 da memoria
 /*3 */		 new Word(Opcode.LDD,2,-1,20), // ler da memoria e colocar no registrador
-/*4 */		 new Word(Opcode.JMPIL,13,2,-1),// comparar se registrador < 0
+/*4 */		 new Word(Opcode.LDI, 0,-1,13),
+/*5 */		 new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
 
-/*5 */		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
+/*6 */		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
 			 // inicio loop
-/*6 */		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
+/*7 */		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
 
-/*7 */		 new Word(Opcode.SUBI,2,-1,1), //subtrai pra fazer r1*r2
+/*8 */		 new Word(Opcode.SUBI,2,-1,1), //subtrai pra fazer r1*r2
 
-/*8 */		 new Word(Opcode.MULT,1,2,-1), //multiplica
+/*9 */		 new Word(Opcode.MULT,1,2,-1), //multiplica
 
-/*9 */		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
-/*10*/		 new Word(Opcode.JMPIGM,-1,2,6),	// compara a zero para ver se precisa parar   x = 6
+/*10 */		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
+/*11*/		 new Word(Opcode.JMPIGM,-1,2,6),	// compara a zero para ver se precisa parar   x = 6
 			 // fim loop
 
-/*11*/		 new Word(Opcode.STD,1,-1,20), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
-/*12*/		 new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
-/*13*/       new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
-/*14*/       new Word(Opcode.STD,1,-1,20), // armazena no valor de r1 na posicao 20 da memoria
-/*15*/       new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
+/*12*/		 new Word(Opcode.STD,1,-1,20), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
+/*13*/		 new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
+/*14*/       new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
+/*15*/       new Word(Opcode.STD,1,-1,20), // armazena no valor de r1 na posicao 20 da memoria
+/*16*/       new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
 		   };
    }
 }
