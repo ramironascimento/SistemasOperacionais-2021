@@ -8,7 +8,7 @@ package com.company;// PUCRS - Escola Politécnica - Sistemas Operacionais
 import java.util.Objects;
 import java.util.Scanner;
 
-//TODO testar tudo com programas teste
+//TODO BACKLOG testar tudo com programas teste
 
 public class Sistema {
 
@@ -66,7 +66,10 @@ public class Sistema {
 					ir = m[pc]; 	// busca posicao da memoria apontada por pc, guarda em ir
 				// EXECUTA INSTRUCAO NO ir
 
-				//TODO fazer as validações dos possiveis erros em casa Opcode (Já tem um exemplo no JMP)
+				//TODO DOING validar se os registradores usados em casa operação existe (fazer metodo pra isso)
+				long sum = 0;
+				long sub = 0;
+
 
 					switch (ir.opc) { // para cada opcode, sua execução
 
@@ -89,21 +92,40 @@ public class Sistema {
 							{
 								ir.interruption = 2;
 							}
-							//execucao jmp
+							//execucao
 							else
 							{
 								pc = ir.p;
-								break;
 							}
+							break;
 
 						case JMPI: //PC ← Rs
-							pc = reg[ir.r1];
+							//tratamento de erro
+							if(m[reg[ir.r1]].opc == Opcode.___)
+							{
+								ir.interruption = 2;
+							}
+							//execucao
+							else
+							{
+								pc = reg[ir.r1];
+							}
+
 							break;
 
 						case JMPIG: // If Rc > 0 Then PC ← Rs Else PC ← PC +1
 							if (reg[ir.r2] > 0)
 							{
-								pc = reg[ir.r1];
+								//tratamento de erro
+								if(m[reg[ir.r1]].opc == Opcode.___)
+								{
+									ir.interruption = 2;
+								}
+								//execucao
+								else
+								{
+									pc = reg[ir.r1];
+								}
 							}
 							else
 							{
@@ -114,7 +136,16 @@ public class Sistema {
 
 						case JMPIL: //if Rc < 0 then PC ← Rs Else PC ← PC +1
 							if (reg[ir.r2] < 0) {
-								pc = reg[ir.r1];
+								//tratamento de erro
+								if(m[reg[ir.r1]].opc == Opcode.___)
+								{
+									ir.interruption = 2;
+								}
+								//execucao
+								else
+								{
+									pc = reg[ir.r1];
+								}
 							} else {
 								pc++;
 							}
@@ -122,19 +153,46 @@ public class Sistema {
 
 						case JMPIE: //if Rc == 0 then PC ← Rs Else PC ← PC +1
 							if (reg[ir.r2] == 0) {
-								pc = reg[ir.r1];
+								//tratamento de erro
+								if(m[reg[ir.r1]].opc == Opcode.___)
+								{
+									ir.interruption = 2;
+								}
+								//execucao
+								else
+								{
+									pc = reg[ir.r1];
+								}
 							} else {
 								pc++;
 							}
 							break;
 
 						case JMPIM: // PC ← [A]
-							pc = m[ir.p].p;
+							//tratamento de erro
+							if(m[ir.p].opc == Opcode.___)
+							{
+								ir.interruption = 2;
+							}
+							//execucao
+							else
+							{
+								pc = m[ir.p].p;
+							}
 							break;
 
 						case JMPIGM: // if Rc > 0 then PC ← [A] Else PC ← PC +1
 							if (reg[ir.r2] > 0) {
-								pc = ir.p;
+								//tratamento de erro
+								if(m[ir.p].opc == Opcode.___)
+								{
+									ir.interruption = 2;
+								}
+								//execucao
+								else
+								{
+									pc = ir.p;
+								}
 							} else {
 								pc++;
 							}
@@ -142,7 +200,16 @@ public class Sistema {
 
 						case JMPILM: //if Rc < 0 then PC ← [A] Else PC ← PC +1
 							if (reg[ir.r2] < 0) {
-								pc = ir.p;
+								//tratamento de erro
+								if(m[ir.p].opc == Opcode.___)
+								{
+									ir.interruption = 2;
+								}
+								//execucao
+								else
+								{
+									pc = ir.p;
+								}
 							} else {
 								pc++;
 							}
@@ -150,43 +217,107 @@ public class Sistema {
 
 						case JMPIEM: //if Rc == 0 then PC ← [A] Else PC ← PC +1
 							if (reg[ir.r2] == 0) {
-								pc = ir.p;
+								//tratamento de erro
+								if(m[ir.p].opc == Opcode.___)
+								{
+									ir.interruption = 2;
+								}
+								//execucao
+								else
+								{
+									pc = ir.p;
+								}
 							} else {
 								pc++;
 							}
 							break;
 
-						case STOP: // por enquanto, para execucao
-							ir.interruption = 4; // interrupcao stop
+						case STOP: // Interruption ← 4
+							ir.interruption = 4;
 							break;
 
 						case ADDI: // Rd ← Rd + k
-							reg[ir.r1] = reg[ir.r1] + ir.p;
+							//tramento erro
+							sum = reg[ir.r1] + ir.p;
+							if (sum > Integer.MAX_VALUE)
+							{
+								ir.interruption = 1;
+							}
+							//execucao
+							else
+							{
+								reg[ir.r1] = reg[ir.r1] + ir.p;
+							}
 							pc++;
 							break;
 
 						case SUBI: // Rd ← Rd – k
-							reg[ir.r1] = reg[ir.r1] - ir.p;
+							//tratamento erro
+							sub = reg[ir.r1] - ir.p;
+							if (sub < Integer.MIN_VALUE)
+							{
+								ir.interruption = 1;
+							}
+							//execucao
+							else
+							{
+								reg[ir.r1] = reg[ir.r1] - ir.p;
+							}
+
 							pc++;
 							break;
 
 						case ADD: // Rd ← Rd + Rs
-							reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
+							//tratamento erro
+							sum = reg[ir.r1] + reg[ir.r2];
+							if (sum > Integer.MAX_VALUE)
+							{
+								ir.interruption = 1;
+							}
+							//execucao
+							else
+							{
+								reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
+							}
 							pc++;
 							break;
 
 						case SUB: // Rd ← Rd - Rs
-							reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
+							//tratamento erro
+							sub = reg[ir.r1] - reg[ir.r2];
+							if (sub < Integer.MIN_VALUE)
+							{
+								ir.interruption = 1;
+							}
+							//execucao
+							else
+							{
+								reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
+							}
 							pc++;
 							break;
 
 						case MULT: // Rd ← Rd * Rs
-							reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
+							//tratamento erro
+							sum = reg[ir.r1] * reg[ir.r2];
+							if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE)
+							{
+								ir.interruption = 1;
+							}
+							//execucao
+							else
+							{
+								reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
+							}
 							pc++;
 							break;
 
 
 						case LDI: // Rd ← k
+							if (ir.r1 > reg.length)
+							{
+								ir.interruption = 2;
+							}
 							reg[ir.r1] = ir.p;
 							pc++;
 							break;
@@ -288,19 +419,19 @@ public class Sistema {
 
 	public void Tratamento_Overflow()
 	{
-		//TODO msg de erro (system.out)
+		//TODO BACKLOG msg de erro (system.out)
 	}
 	public void Tratamento_Opcode_Invalido()
 	{
-		//TODO msg de erro (system.out)
+		//TODO BACKLOG msg de erro (system.out)
 	}
 	public void Tratamento_Endereco_Invalido()
 	{
-		//TODO msg de erro (system.out)
+		//TODO BACKLOG msg de erro (system.out)
 	}
 	public void Trtamento_STOP()
 	{
-		//TODO dizer que está encerrando o programa a ser executado (system.out)
+		//TODO BACKLOG dizer que está encerrando o programa a ser executado (system.out)
 	}
 
 
@@ -324,7 +455,7 @@ public class Sistema {
     // ------------------- instancia e testa sistema
 	public static void main(String args[]) {
 		Sistema s = new Sistema();
-		//TODO while loop com menu perguntando pro usuário qual programa ele quer executar.
+		//TODO BACKLOG while loop com menu perguntando pro usuário qual programa ele quer executar.
 		//s.test1();
 		//s.test2();
 		s.test_p3();
@@ -376,7 +507,6 @@ public class Sistema {
 
 	// -------------------------------------------  classes e funcoes auxiliares
     public class Aux {
-		//TODO minuto video (31min) criar interface pra escolher qual programa vai rodar e fazer feedbacks em tempo de execucao pra dizer qnd comecou e parou de rodar cada programa.
 		public void dump(Word w) {
 			System.out.print("[ ");
 			System.out.print(w.opc); System.out.print(", ");
@@ -399,7 +529,7 @@ public class Sistema {
 
    //  -------------------------------------------- programas aa disposicao para copiar na memoria (vide aux.carga)
    public class Programas {
-    	//TODO fazer os programas que faltam e completar os ja existentes
+    	//TODO DOING fazer os programas que faltam e completar os ja existentes
 
 	   public Word[] progMinimo = new Word[] {
 		    new Word(Opcode.LDI, 0, -1, 999),
