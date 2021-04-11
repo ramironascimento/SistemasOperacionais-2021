@@ -65,7 +65,7 @@ public class Sistema {
 					ir = m[pc]; 	// busca posicao da memoria apontada por pc, guarda em ir
 				// EXECUTA INSTRUCAO NO ir
 
-				//TODO DOING validar se os registradores usados em casa operação existe (fazer metodo pra isso)
+				//TODO DONE validar se os registradores usados em casa operação existe (fazer metodo pra isso)
 				long sum = 0;
 				long sub = 0;
 					switch (ir.opc) { // para cada opcode, sua execução
@@ -74,13 +74,13 @@ public class Sistema {
 							if (reg[8] == 1) //in
 							{
 								Scanner teclado = new Scanner(System.in);
-								m[reg[9]].opc = Opcode.DATA;
-								m[reg[9]].p = teclado.nextInt();
+								reg[9] = teclado.nextInt();
 							}
 							if (reg[8] == 2) //out
 							{
 								System.out.println(m[reg[9]].p);
 							}
+							pc++;
 							break;
 
 						case JMP: //PC ← k
@@ -342,7 +342,7 @@ public class Sistema {
 						case MULT: // R1 ← R1 * R2
 							//tratamento erro
 							if (Registrador_Valido(ir.r1) && Registrador_Valido(ir.r2)) {
-								sum = reg[ir.r1] * reg[ir.r2];
+								sum = (long) reg[ir.r1] * reg[ir.r2];
 								if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) {
 									ir.interruption = 1;
 								}
@@ -673,8 +673,8 @@ public class Sistema {
 
    //  -------------------------------------------- programas aa disposicao para copiar na memoria (vide aux.carga)
    public class Programas {
-    	//TODO DOING fazer os programas que faltam e completar os ja existentes
 
+	   //TODO DONE nao precisa fazer
 	   public Word[] progMinimo = new Word[] {
 		    new Word(Opcode.LDI, 0, -1, 999),
 			new Word(Opcode.STD, 0, -1, 10),
@@ -684,6 +684,7 @@ public class Sistema {
 			new Word(Opcode.STD, 0, -1, 14),
 			new Word(Opcode.STOP, -1, -1, -1) };
 
+	   //TODO DOING inserir o esquema de trap no programa
 	   public Word[] fibonacci10 = new Word[] { // mesmo que prog exemplo, so que usa r0 no lugar de r8
 			new Word(Opcode.LDI, 1, -1, 0),
 			new Word(Opcode.STD, 1, -1, 20), //50
@@ -701,34 +702,43 @@ public class Sistema {
 			new Word(Opcode.ADDI, 0, -1, 1),
 			new Word(Opcode.SUB, 7, 0, -1),
 			new Word(Opcode.JMPIG, 6, 7, -1),
-			new Word(Opcode.STOP, -1, -1, -1) };
+			new Word(Opcode.STOP, -1, -1, -1)};
 
-	   public Word[] p3 = new Word[]{
-/*1 */       new Word(Opcode.LDI, 1, -1, 10), // joga o valor 10 no Registrador1
-/*2 */		 new Word(Opcode.STD, 1, -1, 20), // coloca o valor do Registrado1 na posição 20 da memoria
-/*3 */		 new Word(Opcode.LDD,2,-1,20), // ler da memoria e colocar no registrador
-/*4 */		 new Word(Opcode.LDI, 0,-1,15),
-/*5 */		 new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
+      // TODO DONE P3 feito
+	  public Word[] p3 = new Word[]{
+		 new Word(Opcode.LDI, 8, -1, 1), // joga o valor 10 no Registrador1
+		 new Word(Opcode.TRAP,-1,-1,-1),// chama trap para IN
+		 new Word(Opcode.STD, 9, -1, 80), // coloca o valor do Registrado9 na posição 20 da memoria
+		 new Word(Opcode.LDD,1,-1,80), // ler da memoria e colocar no registrador
+		 new Word(Opcode.LDD,2,-1,80), // ler da memoria e colocar no registrador
+		 new Word(Opcode.LDI, 0,-1,18), // numero da linha que será pulado no JMP abaixo
+		 new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
+		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
 
-/*6 */		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
+		 // inicio loop
+		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
+		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra fazer r1*r2
+		 new Word(Opcode.MULT,1,2,-1), // multiplica
+		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
+		 new Word(Opcode.JMPIGM,-1,2,8),	// compara a zero para ver se precisa parar   x = 6
+		 // fim loop
 
-			 // inicio loop
-/*7 */		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
+		 new Word(Opcode.STD,1,-1,80), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memori
+		 new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
+		 new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
+		 new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
+		 new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
+		 new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
+		 new Word(Opcode.STD,1,-1,80), // armazena no valor de r1 na posicao 20 da memoria
+		 new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
+		 new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
+		 new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
+		 new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
+	  };
 
-/*8 */		 new Word(Opcode.SUBI,2,-1,1), //subtrai pra fazer r1*r2
+	  //TODO DOING fazer o P4
 
-/*9 */		 new Word(Opcode.MULT,1,2,-1), //multiplica
 
-/*10 */		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
-/*11*/		 new Word(Opcode.JMPIGM,-1,2,6),	// compara a zero para ver se precisa parar   x = 6
-			 // fim loop
-
-/*12*/		 new Word(Opcode.STD,1,-1,20), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
-/*13*/		 new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
-/*14*/       new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
-/*15*/       new Word(Opcode.STD,1,-1,20), // armazena no valor de r1 na posicao 20 da memoria
-/*16*/       new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
-		   };
    }
 }
 
