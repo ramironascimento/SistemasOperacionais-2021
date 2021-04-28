@@ -6,7 +6,7 @@ package com.company;
 // Fase 1 - máquina virtual (vide enunciado correspondente)
 //
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Scanner;
 
 //TODO BACKLOG testar tudo com programas teste
@@ -51,7 +51,8 @@ public class Sistema {
 	// FASE 4 (START)
 	public enum Progs{
 		PROG_MINIMO, FIBBONACI10,
-		FATORIAL, P4, ___;
+		FATORIAL, BUBBLE_SORT,
+		___;
 	}
 	// FASE 4 (FINISH)
 
@@ -78,7 +79,6 @@ public class Sistema {
 				ir = m[pc];    // busca posicao da memoria apontada por pc, guarda em ir
 				// EXECUTA INSTRUCAO NO ir
 
-				//TODO DONE validar se os registradores usados em casa operação existe (fazer metodo pra isso)
 				long sum = 0;
 				long sub = 0;
 				switch (ir.opc) { // para cada opcode, sua execução
@@ -437,7 +437,6 @@ public class Sistema {
 		public Word[] m;
 		public CPU cpu;
 		// FASE 4 (START)
-		public int tamFrame;
 		public ControleMemoria controleMemoria;
 		// FASE 4 (FINISH)
 
@@ -446,14 +445,12 @@ public class Sistema {
 			// memória
 			tamMem = 1024;
 			// FASE 4 (START)
-			tamFrame = 16;
+			int tamFrame = 16;
 			controleMemoria = new ControleMemoria(tamMem, tamFrame);
 			// FASE 4 (FINISH)
 			m = new Word[tamMem]; // m ee a memoria
-			for (int i = 0; i < tamMem; i++) {
-				m[i] = new Word(Opcode.___, -1, -1, -1);
-			}
-			;
+			for (int i = 0; i < tamMem; i++) { m[i] = new Word(Opcode.___, -1, -1, -1); }
+
 			// cpu
 			cpu = new CPU(m);
 		}
@@ -469,55 +466,41 @@ public class Sistema {
 	// -------------------------------------------------------------------------------------------------------
 	// ------------------- S O F T W A R E - inicio ----------------------------------------------------------
 
-
+	// region Tratamento
 	public void Tratamento_Overflow(Word w) {
-		System.out.print("**Erro na intrução: ");
-		System.out.print("[ ");
-		System.out.println("[ ");
-		System.out.print(w.opc);
-		System.out.print(", ");
-		System.out.print(w.r1);
-		System.out.print(", ");
-		System.out.print(w.r2);
-		System.out.print(", ");
-		System.out.print(w.p);
-		System.out.println("  ] ");
+        OutputTratamento(w);
 
-		System.out.println("Houve Overflow na operação aritmética");
+        System.out.println("Houve Overflow na operação aritmética");
 	}
 
-	public void Tratamento_Opcode_Invalido(Word w) {
-		System.out.print("**Erro na intrução: ");
-		System.out.print("[ ");
-		System.out.print(w.opc);
-		System.out.print(", ");
-		System.out.print(w.r1);
-		System.out.print(", ");
-		System.out.print(w.r2);
-		System.out.print(", ");
-		System.out.print(w.p);
-		System.out.println("  ] ");
+    public void Tratamento_Opcode_Invalido(Word w) {
+        OutputTratamento(w);
 
-		System.out.println("Operação " + "[ " + w.opc + " ]" + " nao identificada.");
+        System.out.println("Operação " + "[ " + w.opc + " ]" + " nao identificada.");
 	}
 
 	public void Tratamento_Endereco_Invalido(Word w) {
-		System.out.print("**Erro na intrução: [ ");
-		System.out.print(w.opc);
-		System.out.print(", ");
-		System.out.print(w.r1);
-		System.out.print(", ");
-		System.out.print(w.r2);
-		System.out.print(", ");
-		System.out.print(w.p);
-		System.out.println("  ] ");
+        OutputTratamento(w);
 
-		System.out.println("O endereço de memória ou registrador referenciado não existe.");
+        System.out.println("O endereço de memória ou registrador referenciado não existe.");
 	}
 
 	public void Tratamento_STOP(Word w) {
 		System.out.println("---------------------------------- fim do programa ");
 	}
+
+    private void OutputTratamento(Word w) {
+        System.out.print("**Erro na intrução: [ ");
+        System.out.print(w.opc);
+        System.out.print(", ");
+        System.out.print(w.r1);
+        System.out.print(", ");
+        System.out.print(w.r2);
+        System.out.print(", ");
+        System.out.print(w.p);
+        System.out.print("  ] ");
+    }
+    //endregion
 
 	//region TRAP
 	public void Trap_OUT(int p) {
@@ -530,79 +513,83 @@ public class Sistema {
 	}
 	//endregion
 
+
 	public boolean Registrador_Valido(int reg_n) {
 		return (reg_n >= 0 && reg_n <= 9);
 	}
 
 	// FASE 4 (START)
+	// region Controle Memoria
 	public class ControleMemoria {
+
+		//atributos
 		public Frame[] frames;
 		public int tamanho_frame;
+		public ArrayList<ProgEmMemoria> programas_em_memoria;
 
+		// construtor
 		public ControleMemoria(int tamanho_memoria, int tamanho_frame) {
 			frames = new Frame[(tamanho_memoria / tamanho_frame)];
+			programas_em_memoria = new ArrayList<>();
 			for (int i = 0; i < tamanho_memoria/tamanho_frame; i++) {
 				frames[i] = new Frame(i,true,Progs.___,0);
-				/*frames[i].frame_livre = true;
-				frames[i].id_frame = i;
-				frames[i].nomeProg = Progs.___;
-				frames[i].idProg = 0;*/
 			}
 			this.tamanho_frame = tamanho_frame;
 		}
 
+		// region Metodos
+		public int getProgEmMemoria (Progs prog, int idProg){
+			for (ProgEmMemoria progs : programas_em_memoria) {
+			    if (progs.programa.equals(prog) && progs.idProg==idProg){
+			    	return programas_em_memoria.indexOf(progs);
+				}
+			}
+			return -1;
+		}
+
+
+		public boolean Existe_Programa(Progs programa, int idProg){
+			for (ProgEmMemoria prog : programas_em_memoria) {
+				if (prog.programa.equals(programa) && prog.idProg==idProg){
+					return true;
+				}
+			}
+			return false;
+		}
+
 		public int getNextId(Progs p) {
-			int maior = 0;
-			for (Frame frame :
-					frames) {
-				if (frame.nomeProg.equals(p)) {
-					if (frame.idProg > maior){
-						maior = frame.idProg;
+			int maior=0;
+			for (ProgEmMemoria prog : programas_em_memoria) {
+			    if (prog.programa.equals(p)){
+			    	if(prog.idProg>maior){
+			    		maior = prog.idProg;
 					}
 				}
 			}
 			return maior+1;
 		}
 
-		public class Frame {
-			public int id_frame;
-			public boolean frame_livre;
-			public Progs nomeProg;
-			public int idProg;
-
-			public Frame(int id_frame, boolean frame_livre, Progs nomeProg, int idProg) {
-				this.id_frame = id_frame;
-				this.frame_livre = frame_livre;
-				this.nomeProg = nomeProg;
-				this.idProg = idProg;
+		public ArrayList<Integer>  getFramesProg(Progs nomePrograma, int idProg) {
+			for (ProgEmMemoria prog : programas_em_memoria) {
+			    if(prog.programa.equals(nomePrograma)){
+			    	if(prog.idProg==idProg){
+			    		return prog.frames_prog;
+					}
+				}
 			}
-
-			public boolean isFrame_livre() {
-				return frame_livre;
-			}
-
-			public void setFrame_livre(boolean frame_livre) {
-				this.frame_livre = frame_livre;
-			}
-
-			public void setPrograma (Progs nomeProg){
-				this.nomeProg = nomeProg;
-				this.idProg = getNextId(nomeProg);
-			}
-
-			public void setPrograma (Progs nomeProg, int idProg){
-				this.nomeProg = nomeProg;
-				this.idProg = idProg;
-			}
+			throw(new IndexOutOfBoundsException());
 		}
 
 
-		public boolean Existe_Frames_Livres(double tamProg, int[] frames_reservados) {
-			double qnt_frames_necessarios = Math.ceil(tamProg / vm.tamFrame);
+		public int getContextoPrograma(Progs bubbleSort, int i) {
+			return 0; //TODO BACKLOG
+		}
+		public boolean Existe_Frames_Livres(double tamProg, ArrayList<Integer> frames_reservados) {
+			double qnt_frames_necessarios = Math.ceil(tamProg / vm.controleMemoria.tamanho_frame);
 			int cont = 0;
 			for (int i = 0; i < vm.controleMemoria.frames.length; i++) {
 				if (vm.controleMemoria.frames[i].isFrame_livre()) {
-					frames_reservados[cont] = i;
+					frames_reservados.add(i);
 					cont++;
 					if (cont == qnt_frames_necessarios) {
 						return true;
@@ -612,15 +599,16 @@ public class Sistema {
 			return false;
 		}
 
-		public void Aloca_Frames(int[] frames_reservados, Word[] p, Progs nomePrograma){
+		public void Aloca_Frames(ArrayList<Integer> frames_reservados, Word[] p, Progs nomePrograma){
 			int cont=0;
 			int max_id = getNextId(nomePrograma);
-			for (int i = 0; frames_reservados[i] >=0;i++) {
-				for (int j = (frames_reservados[i]* vm.controleMemoria.tamanho_frame); j<=(((frames_reservados[i]+1)* vm.controleMemoria.tamanho_frame)-1); j++) {
+			for (int i = 0; i < frames_reservados.size(); i++) {
+				for (int j = (frames_reservados.get(i) * vm.controleMemoria.tamanho_frame); j<=(((frames_reservados.get(i) +1)* vm.controleMemoria.tamanho_frame)-1); j++) {
 					vm.m[j].opc = p[cont].opc;     vm.m[j].r1 = p[cont].r1;     vm.m[j].r2 = p[cont].r2;     vm.m[j].p = p[cont].p;
 				}
 				vm.controleMemoria.frames[i].setPrograma(nomePrograma,max_id);
 			}
+			vm.controleMemoria.programas_em_memoria.add(new ProgEmMemoria(nomePrograma,max_id,frames_reservados));
 		}
 
 		public void Desaloca_Frames(Progs nomePrograma, int idProg){
@@ -628,6 +616,10 @@ public class Sistema {
 				if (frame.nomeProg.equals(nomePrograma) && frame.idProg == idProg){
 					ResetFrames(frame);
 				}
+			}
+			int aux_ = getProgEmMemoria(nomePrograma,idProg);
+			if (aux_>=0) {
+				programas_em_memoria.remove(aux_);
 			}
 		}
 
@@ -649,9 +641,71 @@ public class Sistema {
 			frame.idProg = 0;
 			frame.nomeProg = Progs.___;
 		}
-		// FASE 4 (FINISH)
-	}
 
+		public
+		// endregion
+
+		// region SubClasses: ProgEmMemoria, Frame
+		class ProgEmMemoria {
+			public Progs programa;
+			public int idProg;
+			public ArrayList<Integer> frames_prog;
+
+			public ProgEmMemoria(Progs programa, int idProg, ArrayList<Integer> frames_prog){
+				this.programa = programa;
+				this.idProg = idProg;
+				frames_prog = new ArrayList<>();
+				for (int i : frames_prog) {
+				    this.frames_prog.add(i);
+				}
+			}
+
+
+			@Override
+			public String toString() {
+				return " [ " + idProg + " ] " +	"Programa: " + programa;
+			}
+
+		}
+
+		public class Frame {
+			public int id_frame;
+			public boolean frame_livre;
+			public Progs nomeProg;
+			public int idProg;
+
+			//contrutor
+			public Frame(int id_frame, boolean frame_livre, Progs nomeProg, int idProg) {
+				this.id_frame = id_frame;
+				this.frame_livre = frame_livre;
+				this.nomeProg = nomeProg;
+				this.idProg = idProg;
+			}
+
+			//region Metodos
+			public boolean isFrame_livre() {
+				return frame_livre;
+			}
+
+			public void setFrame_livre(boolean frame_livre) {
+				this.frame_livre = frame_livre;
+			}
+
+			public void setPrograma (Progs nomeProg){
+				this.nomeProg = nomeProg;
+				this.idProg = getNextId(nomeProg);
+			}
+			public void setPrograma (Progs nomeProg, int idProg){
+				this.nomeProg = nomeProg;
+				this.idProg = idProg;
+			}
+			// endregion
+		}
+		//endregion
+
+	}
+	// endregion
+	// FASE 4 (FINISH)
 
 
 
@@ -675,7 +729,7 @@ public class Sistema {
 
 	public static void main(String[] args){
 		Sistema s = new Sistema();
-		Menu_Programas(s);
+		Menu_Opcoes(s);
 	}
 
 	//FASE 4 (START)
@@ -695,13 +749,13 @@ public class Sistema {
 					System.out.println("---------------------------------- fim sistema ");
 					break;
 				case 1:
-					//fazer
+					Menu_Roda_Prog(s);
 					break;
 				case 2:
-					Menu_Programas(s);
+					Menu_Carrega_Prog(s);
 					break;
 				case 3:
-					//fazer
+					Menu_Remove_Prog(s);
 					break;
 				default:
 					System.out.println(" Opcao invalida, tente novamente.");
@@ -711,39 +765,102 @@ public class Sistema {
 		}while (menu_opcoes >0);
 	}
 
-	public static void Menu_Programas(Sistema s) {
-		int opcao_menu = -1;
-		do{
-			System.out.println("--------- ESCOLHA O PROGRAMA ---------");
-			System.out.println(" [1] - ProgMin");
-			System.out.println(" [2] - Fibonacci");
-			System.out.println(" [3] - Fatorial");
-			System.out.println(" [4] - BubbleSort");
-			System.out.println(" [0] - Sair");
-			opcao_menu = teclado.nextInt();
-
-			switch (opcao_menu) {
-				case 0:
-					System.out.println("---------------------------------- voltando ao menu principal ");
-					break;
-				case 1:
-					s.test1();
-					break;
-				case 2:
-					s.test2();
-					break;
-				case 3:
-					s.test_p3();
-					break;
-				case 4:
-					//TODO BACKLOG adicionar o BubbleSort aqui
-					break;
-				default:
-					System.out.println(" Opcao invalida, tente novamente.");
-					break;
+	public static void Menu_Roda_Prog(Sistema s){
+		if (!s.vm.controleMemoria.programas_em_memoria.isEmpty()){
+			Progs progs = Progs.___;
+			boolean excecao = false;
+			System.out.println("------- Programas disponiveis em memória");
+			for (ControleMemoria.ProgEmMemoria p : s.vm.controleMemoria.programas_em_memoria) {
+				System.out.println(p.toString());
 			}
+			System.out.println("-------");
+			System.out.println("Digite o numero do programa e o nome dele em seguida");
+			System.out.println("Numero: ");
+			int idProg = teclado.nextInt();
+			teclado.nextLine();
+			System.out.println("Nome: ");
+			String nomeProg = teclado.nextLine();
+			System.out.println("-------");
+			try {
+				progs = Progs.valueOf(nomeProg);
+			}
+			catch(IllegalArgumentException i){
+				excecao = true;
+				System.out.println("Nome de programa inválido");
+			}
+			if (s.vm.controleMemoria.Existe_Programa(progs,idProg)){
+				//TODO BACKLOG metodo para rodar
+			}
+			else
+			{
+				if(!excecao) {
+					System.out.println("Este programa nao existe.");
+				}
+			}
+		}
+		else
+		{
+			System.out.println("Não há programas em memória.");
+		}
+	}
 
-		} while (opcao_menu != 0);
+	public static void Menu_Carrega_Prog(Sistema s) {
+		int opcao_menu = -1;
+		System.out.println("--------- ESCOLHA O PROGRAMA ---------");
+		System.out.println(" [1] - ProgMin");
+		System.out.println(" [2] - Fibonacci");
+		System.out.println(" [3] - Fatorial");
+		System.out.println(" [4] - BubbleSort");
+		System.out.println(" [0] - Sair");
+		opcao_menu = teclado.nextInt();
+
+		switch (opcao_menu) {
+			case 0:
+				System.out.println("---------------------------------- voltando ao menu principal ");
+				break;
+			case 1:
+				s.test1();
+				break;
+			case 2:
+				s.test2();
+				break;
+			case 3:
+				s.test_p3();
+				break;
+			case 4:
+				//TODO BACKLOG adicionar o BubbleSort aqui
+				s.test_bubble_sort();
+				break;
+			default:
+				System.out.println(" Opcao invalida, tente novamente.");
+				break;
+			}
+	}
+
+	public static void Menu_Remove_Prog(Sistema s){
+		Progs progs = Progs.___;
+		System.out.println("------- Programas disponiveis em memória");
+		for (ControleMemoria.ProgEmMemoria p : s.vm.controleMemoria.programas_em_memoria) {
+			System.out.println(p.toString());
+		}
+		System.out.println("-------");
+		System.out.println("Digite o numero do programa e o nome dele em seguida");
+		System.out.println("Numero: ");
+		int idProg = teclado.nextInt();
+		teclado.nextLine();
+		System.out.println("Nome: ");
+		String nomeProg = teclado.nextLine();
+		try {
+			progs = Progs.valueOf(nomeProg);
+		}
+		catch(IllegalArgumentException i){
+			System.out.println("Nome de programa inválido");
+		}
+		System.out.println("-------");
+		if (s.vm.controleMemoria.Existe_Programa(progs,idProg)){
+			s.vm.controleMemoria.Desaloca_Frames(progs,idProg);
+			System.out.println("Programa [ " + progs.toString()+ " ] [ " + idProg+ " ] foi excluído com sucesso.");
+		}
 	}
 	// FASE 4 (FINISH)
 
@@ -756,25 +873,30 @@ public class Sistema {
 	public void test1(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().progMinimo;
-		aux.carga_atualizada(p,Progs.PROG_MINIMO vm);
+		aux.carga_atualizada(p,Progs.PROG_MINIMO, vm);
+		/*
 		vm.cpu.setContext(0);
 		System.out.println("---------------------------------- programa carregado ");
 		aux.dump(vm.m, 0, 33);
 		System.out.println("---------------------------------- após execucao ");
 		vm.cpu.run();
 		aux.dump(vm.m, 0, 33);
+		 */
 	}
 
 	public void test2(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().fibonacci10;
 		aux.carga_atualizada(p,Progs.FIBBONACI10, vm);
+		/*
 		vm.cpu.setContext(0);
 		System.out.println("---------------------------------- programa carregado ");
 		aux.dump(vm.m, 0, 15);
 		System.out.println("---------------------------------- após execucao ");
 		vm.cpu.run();
 		aux.dump(vm.m, 0, 15);
+
+		 */
 
 	}
 
@@ -783,13 +905,30 @@ public class Sistema {
 	public void test_p3(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().p3;
-		aux.carga_atualizada(p, vm);
+		aux.carga_atualizada(p,Progs.FATORIAL, vm);
+
+		/*
 		vm.cpu.setContext(0);
 		System.out.println("---------------------------------- programa carregado ");
 		aux.dump(vm.m, 0, 15);
 		System.out.println("---------------------------------- após execucao ");
 		vm.cpu.run();
 		aux.dump(vm.m, 0, 15);
+		 */
+	}
+
+	public void test_bubble_sort(){
+		Aux aux = new Aux();
+		Word[] p = new Programas().p3;
+		aux.carga_atualizada(p,Progs.BUBBLE_SORT, vm);
+		/*
+		vm.cpu.setContext(vm.controleMemoria.getContextoPrograma(Progs.BUBBLE_SORT,vm.controleMemoria.getNextId(Progs.BUBBLE_SORT)-1));
+		System.out.println("---------------------------------- programa carregado ");
+		aux.dump_atualizado(vm,Progs.BUBBLE_SORT,vm.controleMemoria.getNextId(Progs.BUBBLE_SORT)-1);
+		System.out.println("---------------------------------- após execucao ");
+		vm.cpu.run();
+		aux.dump(vm.m, 0, 15);
+		*/
 	}
 
 
@@ -813,11 +952,20 @@ public class Sistema {
 			}
 		}
 		// FASE 4 (START)
+		public void dump_atualizado(VM vm, Progs nomePrograma, int idProg) {
+			ArrayList<Integer> frames_reservados = new ArrayList<>();
+			frames_reservados = vm.controleMemoria.getFramesProg(nomePrograma,idProg);
+			for (int i = 0; i < frames_reservados.size(); i++) {
+				System.out.println("---- Frame [" + frames_reservados.get(i) + " ]");
+				dump(vm.m,(frames_reservados.get(i) * vm.controleMemoria.tamanho_frame),(((frames_reservados.get(i) +1)* vm.controleMemoria.tamanho_frame)-1));
+			}
+		}
+
 		public void carga_atualizada(Word[] p,Progs nomePrograma, VM vm) {
-			int[] frames_reservados = new int[vm.tamMem/vm.tamFrame];
-			Arrays.fill(frames_reservados, -1);
+		    ArrayList<Integer> frames_reservados = new ArrayList<>();
 			if (vm.controleMemoria.Existe_Frames_Livres(p.length,frames_reservados)) {
 				vm.controleMemoria.Aloca_Frames(frames_reservados,p,nomePrograma);
+				System.out.println("Programa carregado com sucesso.");
 			}
 		}
 		// FASE 4 (FINISH)
@@ -827,9 +975,8 @@ public class Sistema {
 
    //  -------------------------------------------- programas aa disposicao para copiar na memoria (vide aux.carga)
    public class Programas { //TODO PROGRAMA ADICIONADO DEVE SER INSERID NO ENUMERATION "Progs".
-	   //TODO DONE nao precisa fazer
-	   public Word[] progMinimo = new Word[] {
-		    new Word(Opcode.LDI, 0, -1, 999),
+		public Word[] progMinimo = new Word[] {
+			new Word(Opcode.LDI, 0, -1, 999),
 			new Word(Opcode.STD, 0, -1, 10),
 			new Word(Opcode.STD, 0, -1, 11),
 			new Word(Opcode.STD, 0, -1, 12),
@@ -837,8 +984,8 @@ public class Sistema {
 			new Word(Opcode.STD, 0, -1, 14),
 			new Word(Opcode.STOP, -1, -1, -1) };
 
-	   //TODO DOING inserir o esquema de trap no programa
-	   public Word[] fibonacci10 = new Word[] { // mesmo que prog exemplo, so que usa r0 no lugar de r8
+		//TODO BACKLOG inserir o esquema de trap no programa
+		public Word[] fibonacci10 = new Word[] { // mesmo que prog exemplo, so que usa r0 no lugar de r8
 			new Word(Opcode.LDI, 1, -1, 0),
 			new Word(Opcode.STD, 1, -1, 20), //50
 			new Word(Opcode.LDI, 2, -1, 1),
@@ -857,42 +1004,44 @@ public class Sistema {
 			new Word(Opcode.JMPIG, 6, 7, -1),
 			new Word(Opcode.STOP, -1, -1, -1)};
 
-      // TODO DONE P3 feito
-	  public Word[] p3 = new Word[]{
-		 new Word(Opcode.LDI, 8, -1, 1), // joga o valor 10 no Registrador1
-		 new Word(Opcode.TRAP,-1,-1,-1),// chama trap para IN
-		 new Word(Opcode.STD, 9, -1, 80), // coloca o valor do Registrado9 na posição 20 da memoria
-		 new Word(Opcode.LDD,1,-1,80), // ler da memoria e colocar no registrador
-		 new Word(Opcode.LDD,2,-1,80), // ler da memoria e colocar no registrador
-		 new Word(Opcode.LDI, 0,-1,18), // numero da linha que será pulado no JMP abaixo
-		 new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
-		 new Word(Opcode.SUBI,2,-1,1), //r2 = 9
+		public Word[] p3 = new Word[]{
+			new Word(Opcode.LDI, 8, -1, 1), // joga o valor 10 no Registrador1
+			new Word(Opcode.TRAP,-1,-1,-1),// chama trap para IN
+			new Word(Opcode.STD, 9, -1, 80), // coloca o valor do Registrado9 na posição 20 da memoria
+			new Word(Opcode.LDD,1,-1,80), // ler da memoria e colocar no registrador
+			new Word(Opcode.LDD,2,-1,80), // ler da memoria e colocar no registrador
+			new Word(Opcode.LDI, 0,-1,18), // numero da linha que será pulado no JMP abaixo
+			new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
+			new Word(Opcode.SUBI,2,-1,1), //r2 = 9
 
-		 // inicio loop
-		 new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
-		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra fazer r1*r2
-		 new Word(Opcode.MULT,1,2,-1), // multiplica
-		 new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
-		 new Word(Opcode.JMPIGM,-1,2,8),	// compara a zero para ver se precisa parar   x = 6
-		 // fim loop
+			// inicio loop
+			new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
+			new Word(Opcode.SUBI,2,-1,1), // subtrai pra fazer r1*r2
+			new Word(Opcode.MULT,1,2,-1), // multiplica
+			new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
+			new Word(Opcode.JMPIGM,-1,2,8),	// compara a zero para ver se precisa parar   x = 6
+			// fim loop
 
-		 new Word(Opcode.STD,1,-1,80), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memori
-		 new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
-		 new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
-		 new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
-		 new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
-		 new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
-		 new Word(Opcode.STD,1,-1,80), // armazena no valor de r1 na posicao 20 da memoria
-		 new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
-		 new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
-		 new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
-		 new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
-	  };
+			new Word(Opcode.STD,1,-1,80), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
+			new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
+			new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
+			new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
+			new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
+			new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
+			new Word(Opcode.STD,1,-1,80), // armazena no valor de r1 na posicao 20 da memoria
+			new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
+			new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
+			new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
+			new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
+			};
+		//public Word[] BubbleSort = new Word{
 
-	  //TODO DOING fazer o P4
+	   		// le a quantidade de elementos
+	   		// armazena os elementos na memoria (ex: 50,51,52,53,54)
+	   		//
 
-
-   }
-}
+	   //}
+	   }
+	}
 
 
