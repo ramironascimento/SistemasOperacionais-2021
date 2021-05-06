@@ -9,8 +9,8 @@ package com.company;
 import java.util.ArrayList;
 import java.util.Scanner;
 
-//TODO BACKLOG testar tudo com programas teste
-//TODO BACKLOG usar round-robin pro escalonamento
+// todo doing opcao menu de dump de memoria
+
 public class Sistema {
 
 	// -------------------------------------------------------------------------------------------------------
@@ -39,6 +39,8 @@ public class Sistema {
 	// -------------------------------------------------------------------------------------------------------
 	// --------------------- C P U  -  definicoes da CPU -----------------------------------------------------
 	// -------------------------------------------------------------------------------------------------------
+
+	//region ENUMERATIONS
 	public enum Opcode {
 		DATA, ___,            // se memoria nesta posicao tem um dado, usa DATA, se nao usada ee NULO ___
 		JMP, JMPI, JMPIG, JMPIL, JMPIE, JMPIM, JMPIGM, JMPILM, JMPIEM, STOP,   // desvios e parada
@@ -62,6 +64,8 @@ public class Sistema {
 	}
 	// FASE 5* (FINISH)
 
+	//endregion
+
 	public class CPU {
 		// característica do processador: contexto da CPU ...
 		//private int pc;            // ... composto de program counter,
@@ -72,6 +76,7 @@ public class Sistema {
 		private ProcessControlBlock pcb;
 		//FASE 4 (FINISH)
 
+		//construtor
 		public CPU(Word[] _m) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
 			m = _m;                // usa o atributo 'm' para acessar a memoria.
 			reg = new int[10];        // aloca o espaço dos registradores
@@ -82,10 +87,11 @@ public class Sistema {
 		public void run(ProcessControlBlock program) {        // execucao da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado
 			long sum;
 			long sub;
-			int conta_instrucoes = 0;
-			pcb = program; //fetch programa
 
+			pcb = program; //fetch programa
+			reg = pcb.reg;
 			// FASE 5* (START)
+			int conta_instrucoes = 0;
 			pcb.estadoPrograma=EstadoPrograma.RUNNING;
 			// FASE 5* (FINISH)
 
@@ -96,6 +102,7 @@ public class Sistema {
 
 
 				// FASE 5* (START)
+				// Contagem de Q para fazer o Escalonamento Round_Robin
 				conta_instrucoes++;
 				if (conta_instrucoes == vm.rr_q){
 					ir.interruption=6;
@@ -146,7 +153,7 @@ public class Sistema {
 						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
 							if (reg[ir.r2] > 0) {
 								//tratamento de erro
-								if (m[pcb.get_Endereco_Logico(reg[ir.r1])].opc == Opcode.___) {
+								if ((m[pcb.get_Endereco_Logico(reg[ir.r1])].opc == Opcode.___)/**/ || program.idProg==vm.controleMemoria.ProgramaMemoria(pcb.get_Endereco_Logico(reg[ir.r1]))){
 									ir.interruption = 2;
 								}
 								//execucao
@@ -433,7 +440,7 @@ public class Sistema {
 						Tratamento_Endereco_Invalido(ir);
 						vm.controleMemoria.ResetProgram(program);
 						break;
-					} else if (ir.interruption == 3) //Intrucao Invalida
+					} else if (ir.interruption == 3) //Instrucao Invalida
 					{
 						Tratamento_Opcode_Invalido(ir);
 						vm.controleMemoria.ResetProgram(program);
@@ -443,13 +450,14 @@ public class Sistema {
 						Tratamento_STOP(ir);
 						vm.controleMemoria.ResetProgram(program);
 						break;
-					} else if (ir.interruption == 5) //opcode STOP em sí
+					} else if (ir.interruption == 5) //sem memoria disponivel
 					{
 						Tratamento_Sem_Memoria_Disponivel(ir);
 						break;
 					}
 					// FASE 5* (START)
 					else if (ir.interruption == 6){
+						program.reg = this.reg;
 						vm.controleEscalonamento.FimDaFila(program);
 						System.out.println(program.estadoPrograma+" -> " + "Programa["+program.idProg+" - "+program.programa+"]"+" PC = "+ pcb.pc_);
 						break;
@@ -546,6 +554,11 @@ public class Sistema {
 		System.out.println("Nao há memória livre. Favor, remova um programa da memória");
 	}
 
+	public void Tratamento_Sem_Memoria_Disponivel(){
+		System.out.println("**Interrupção de Sistema: \n " +
+				           "Nao há memória livre. Favor, remova um programa da memória");
+	}
+
 	public void Tratamento_Programa_Nao_Encontrado() {
 		System.out.println("Este programa nao foi encontrado em memória.");
 	}
@@ -583,7 +596,8 @@ public class Sistema {
 
 
 	private void OutputTratamento(Word w) {
-		System.out.print("**Erro na intrução: [ ");
+		System.out.print("**Interrupção de Sistema: \n " +
+				         "**Erro na intrução: [ ");
 		System.out.print(w.opc);
 		System.out.print(", ");
 		System.out.print(w.r1);
@@ -876,6 +890,9 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 				}
 				System.out.println();
 			}
+			else{
+				Tratamento_Sem_Memoria_Disponivel();
+			}
 		}
 	}
 
@@ -916,13 +933,15 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 		}
 
 		public void Run(ArrayList<ProcessControlBlock> programas) {
-			this.fila_exec.addAll(programas);
-			while(this.TemProximoProgReady()){
-				vm.cpu.run(this.getProximoProgReady());
+			this.fila_exec.addAll(programas); // adiciona programas na fila de exercucao
+			while(this.TemProximoProgReady()){ // check se tem prog em ready
+				vm.cpu.run(this.getProximoProgReady()); //roda o proximo ready da fila
 			}
+			// qnd acaba, limpa fila e reseta os programas
 			this.fila_exec.clear();
 			for (ProcessControlBlock pcb : programas) {
-			    pcb.estadoPrograma = EstadoPrograma.READY;
+			    vm.controleMemoria.ResetProgram(pcb);
+			    pcb.estadoPrograma=EstadoPrograma.READY;
 			}
 			
 		}
@@ -1000,6 +1019,7 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 		public boolean getFramesProg(int idProg, ArrayList<Integer> frames_reservados) {
 			for (ProcessControlBlock prog : programas_em_memoria) {
 				if(prog.idProg==idProg){
+					frames_reservados.clear();
 					frames_reservados.addAll(prog.frames_prog);
 					return true;
 				}
@@ -1098,7 +1118,25 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 			prog.pc_ = 0;
 			prog.contFrameAtual=0;
 			prog.index_frames=0;
+			for (Frame frame : this.frames) {
+				if (frame.idProg == program.idProg){
+					for (int j = (frame.id_frame * vm.controleMemoria.tamanho_frame); j < (((frame.id_frame + 1) * vm.controleMemoria.tamanho_frame) - 1); j++) {
+					    vm.m[j].interruption = 0;
+					}
+				}
+			}
 		}
+
+		public int ProgramaMemoria(int endereco_logico) {
+			int frame_aux = endereco_logico/tamanho_frame;
+			for (Frame frame : frames) {
+			    if(frame.id_frame==frame_aux){
+			    	return frame.idProg;
+				}
+			}
+			return -1;
+		}
+
 
 		// endregion
 
@@ -1149,6 +1187,7 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 		private int contFrameAtual;
 		private int index_frames;
 		private int pc_;
+		private int[] reg;
 		// FASE 5* (START)
 		private EstadoPrograma estadoPrograma;
 		// FASE 5* (FINISH)
@@ -1165,6 +1204,7 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 			// FASE 5* (START)
 			this.estadoPrograma = EstadoPrograma.READY;
 			// FASE 5* (FINISH)
+			this.reg = new int[10];
 		}
 
 		public int getPrimeiroPC(){
@@ -1218,7 +1258,6 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 				return (frames_prog.get(frame_certo)*tamanho_frame) + index_aux;
 			}
 			if (frame_aux<=vm.cpu.pcb.frames_prog.size()){
-
 				return ((vm.cpu.pcb.frames_prog.get(frame_aux-1))*tamanho_frame)+index_aux;
 			}
 			else {
@@ -1229,7 +1268,7 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 				}
 				else{
 					vm.cpu.ir.interruption=5;
-					return -1;
+					return vm.cpu.pcb.pc_;
 				}
 			}
 
@@ -1329,9 +1368,9 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 		public Word[] p3 = new Word[]{
 				new Word(Opcode.LDI, 8, -1, 1), // joga o valor 10 no Registrador1
 				new Word(Opcode.TRAP,-1,-1,-1),// chama trap para IN
-				new Word(Opcode.STD, 9, -1, 80), // coloca o valor do Registrado9 na posição 20 da memoria
-				new Word(Opcode.LDD,1,-1,80), // ler da memoria e colocar no registrador
-				new Word(Opcode.LDD,2,-1,80), // ler da memoria e colocar no registrador
+				new Word(Opcode.STD, 9, -1, 50), // coloca o valor do Registrado9 na posição 20 da memoria
+				new Word(Opcode.LDD,1,-1,50), // ler da memoria e colocar no registrador
+				new Word(Opcode.LDD,2,-1,50), // ler da memoria e colocar no registrador
 				new Word(Opcode.LDI, 0,-1,18), // numero da linha que será pulado no JMP abaixo
 				new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
 				new Word(Opcode.SUBI,2,-1,1), //r2 = 9
@@ -1344,45 +1383,20 @@ C - ------ -   --------    -    ------      - adicionado mem  - 10 ready   -
 				new Word(Opcode.JMPIGM,-1,2,8),	// compara a zero para ver se precisa parar   x = 6
 				// fim loop
 
-				new Word(Opcode.JMP,-1,-1,40),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-  				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-				new Word(Opcode.ADD,-1,-1,-1),
-/*40*/			new Word(Opcode.STD,1,-1,80), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
+      			new Word(Opcode.STD,1,-1,50), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
 				new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
-				new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
+				new Word(Opcode.LDI, 9, -1,50), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
 				new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
 				new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
 				new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
-				new Word(Opcode.STD,1,-1,80), // armazena no valor de r1 na posicao 20 da memoria
+				new Word(Opcode.STD,1,-1,50), // armazena no valor de r1 na posicao 20 da memoria
 				new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
-				new Word(Opcode.LDI, 9, -1,80), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
+				new Word(Opcode.LDI, 9, -1,50), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
 				new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
 				new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
 		};
+
+		//todo backlog bubblesort
 		//public Word[] BubbleSort = new Word{
 
 		// le a quantidade de elementos
