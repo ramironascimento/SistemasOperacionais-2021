@@ -6,10 +6,12 @@ package com.company;
 // Fase 1 - máquina virtual (vide enunciado correspondente)
 //
 
+//todo backlog translate everything to english
+
 import java.util.ArrayList;
 import java.util.Scanner;
 
-public class Sistema {
+public class System {
 
 	// -------------------------------------------------------------------------------------------------------
 	// --------------------- H A R D W A R E - definicoes de HW ----------------------------------------------
@@ -57,7 +59,7 @@ public class Sistema {
 	// FASE 4 (FINISH)
 
 	// FASE 5* (START)
-	public enum EstadoPrograma{
+	public enum ProgramState {
 		READY,RUNNING
 	}
 	// FASE 5* (FINISH)
@@ -65,11 +67,9 @@ public class Sistema {
 	//endregion
 
 	public class CPU {
-		// característica do processador: contexto da CPU ...
-		//private int pc;            // ... composto de program counter,
-		private Word ir;            // instruction register,
-		private int[] reg;        // registradores da CPU
-		private Word[] m;   // CPU acessa MEMORIA, guarda referencia 'm' a ela. memoria nao muda. ee sempre a mesma.
+		private Word ir;              // instruction register,
+		private int[] reg;           // registradores da CPU
+		private Word[] m;           // CPU acessa MEMORIA, guarda referencia 'm' a ela. memoria nao muda. ee sempre a mesma.
 		//FASE 4 (START)
 		private ProcessControlBlock pcb;
 		//FASE 4 (FINISH)
@@ -82,15 +82,15 @@ public class Sistema {
 
 
 		//FASE 4 (START)
-		public void run(ProcessControlBlock program) {        // execucao da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado
+		public void run(ProcessControlBlock program) {        // execution da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado
 			long sum;
 			long sub;
 
 			pcb = program; //fetch programa
 			reg = pcb.reg;
 			// FASE 5* (START)
-			int conta_instrucoes = 0;
-			pcb.estadoPrograma=EstadoPrograma.RUNNING;
+			int count_round_robin = 0;
+			pcb.programState = ProgramState.RUNNING;
 			// FASE 5* (FINISH)
 
 
@@ -101,8 +101,8 @@ public class Sistema {
 
 				// FASE 5* (START)
 				// Contagem de Q para fazer o Escalonamento Round_Robin
-				conta_instrucoes++;
-				if (conta_instrucoes == vm.rr_q){
+				count_round_robin++;
+				if (count_round_robin == vm.rr_q){
 					ir.interruption=6;
 				}
 				// FASE 5* (FINISH)
@@ -110,14 +110,14 @@ public class Sistema {
 				// EXECUTA INSTRUCAO NO ir
 				sum = 0;
 				sub = 0;
-				switch (ir.opc) { // para cada opcode, sua execução
+				switch (ir.opc) { // para cada opcode, sua exetypocução
 					case TRAP:
 						switch (reg[8]) {
 							case 1: //in
 								reg[9] = Trap_IN();
 								break;
 							case 2: //out
-								Trap_OUT(m[pcb.get_Endereco_Logico(reg[9])].p);
+								Trap_OUT(m[pcb.getLogicAddress(reg[9])].p);
 								break;
 							default:
 								break;
@@ -126,37 +126,37 @@ public class Sistema {
 						break;
 
 					case JMP: //PC ← k
-						//tratamento de erro
-						if (m[pcb.get_Endereco_Logico(ir.p)].opc == Opcode.___) {
+						//error treatment
+						if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
 							ir.interruption = 2;
 						}
-						//execucao
+						//execution
 						else {
-							pcb.JMP_PC(ir.p);
+							pcb.jmpPc(ir.p);
 						}
 						break;
 
 					case JMPI: //PC ← R1
-						//tratamento de erro
-						if (vm.Registrador_Valido(ir.r1) || m[pcb.get_Endereco_Logico(reg[ir.r1])].opc == Opcode.___) {
+						//error treatment
+						if (vm.Valid_Register(ir.r1) || m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
 							ir.interruption = 2;
 						}
-						//execucao
+						//execution
 						else {
-							pcb.JMP_PC(reg[ir.r1]);
+							pcb.jmpPc(reg[ir.r1]);
 						}
 						break;
 
 					case JMPIG: // If R2 > 0 Then PC ← R1 Else PC ← PC +1
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
 							if (reg[ir.r2] > 0) {
-								//tratamento de erro
-								if ((m[pcb.get_Endereco_Logico(reg[ir.r1])].opc == Opcode.___)){
+								//error treatment
+								if ((m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___)){
 									ir.interruption = 2;
 								}
-								//execucao
+								//execution
 								else {
-									pcb.JMP_PC(reg[ir.r1]);
+									pcb.jmpPc(reg[ir.r1]);
 								}
 							} else {
 								pcb.nextPC();
@@ -167,15 +167,15 @@ public class Sistema {
 						break;
 
 					case JMPIL: //if R2 < 0 then PC ← R1 Else PC ← PC +1
-						if (vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r2)) {
 							if (reg[ir.r2] < 0) {
-								//tratamento de erro
-								if (m[pcb.get_Endereco_Logico(reg[ir.r1])].opc == Opcode.___) {
+								//error treatment
+								if (m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
 									ir.interruption = 2;
 								}
-								//execucao
+								//execution
 								else {
-									pcb.JMP_PC(reg[ir.r1]);
+									pcb.jmpPc(reg[ir.r1]);
 								}
 							} else {
 								pcb.nextPC();
@@ -187,15 +187,15 @@ public class Sistema {
 						break;
 
 					case JMPIE: //if R2 == 0 then PC ← R1 Else PC ← PC +1
-						if (vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r2)) {
 							if (reg[ir.r2] == 0) {
-								//tratamento de erro
-								if (m[pcb.get_Endereco_Logico(reg[ir.r1])].opc == Opcode.___) {
+								//error treatment
+								if (m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
 									ir.interruption = 2;
 								}
-								//execucao
+								//execution
 								else {
-									pcb.JMP_PC(reg[ir.r1]);
+									pcb.jmpPc(reg[ir.r1]);
 								}
 							} else {
 								pcb.nextPC();
@@ -206,26 +206,26 @@ public class Sistema {
 						break;
 
 					case JMPIM: // PC ← [A]
-						//tratamento de erro
-						if (m[pcb.get_Endereco_Logico(ir.p)].opc == Opcode.___) {
+						//error treatment
+						if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
 							ir.interruption = 2;
 						}
-						//execucao
+						//execution
 						else {
-							pcb.JMP_PC(m[ir.p].p);
+							pcb.jmpPc(m[ir.p].p);
 						}
 						break;
 
 					case JMPIGM: // if R2 > 0 then PC ← [A] Else PC ← PC +1
-						if (vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r2)) {
 							if (reg[ir.r2] > 0) {
-								//tratamento de erro
-								if (m[pcb.get_Endereco_Logico(ir.p)].opc == Opcode.___) {
+								//error treatment
+								if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
 									ir.interruption = 2;
 								}
-								//execucao
+								//execution
 								else {
-									pcb.JMP_PC(ir.p);
+									pcb.jmpPc(ir.p);
 								}
 							} else {
 								pcb.nextPC();
@@ -236,15 +236,15 @@ public class Sistema {
 						break;
 
 					case JMPILM: //if R2 < 0 then PC ← [A] Else PC ← PC +1
-						if (vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r2)) {
 							if (reg[ir.r2] < 0) {
-								//tratamento de erro
-								if (m[pcb.get_Endereco_Logico(ir.p)].opc == Opcode.___) {
+								//error treatment
+								if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
 									ir.interruption = 2;
 								}
-								//execucao
+								//execution
 								else {
-									pcb.JMP_PC(ir.p);
+									pcb.jmpPc(ir.p);
 								}
 							} else {
 								pcb.nextPC();
@@ -255,15 +255,15 @@ public class Sistema {
 						break;
 
 					case JMPIEM: //if R2 == 0 then PC ← [A] Else PC ← PC +1
-						if (vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r2)) {
 							if (reg[ir.r2] == 0) {
-								//tratamento de erro
-								if (m[pcb.get_Endereco_Logico(ir.p)].opc == Opcode.___) {
+								//error treatment
+								if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
 									ir.interruption = 2;
 								}
-								//execucao
+								//execution
 								else {
-									pcb.JMP_PC(ir.p);
+									pcb.jmpPc(ir.p);
 								}
 							} else {
 								pcb.nextPC();
@@ -279,12 +279,12 @@ public class Sistema {
 
 					case ADDI: // R1 ← R1 + k
 						//tramento erro
-						if (vm.Registrador_Valido(ir.r1)) {
+						if (vm.Valid_Register(ir.r1)) {
 							sum = reg[ir.r1] + ir.p;
 							if (sum > Integer.MAX_VALUE) {
 								ir.interruption = 1;
 							}
-							//execucao
+							//execution
 							else {
 								reg[ir.r1] = reg[ir.r1] + ir.p;
 								pcb.nextPC();
@@ -296,12 +296,12 @@ public class Sistema {
 
 					case SUBI: // R1 ← R1 – k
 						//tratamento erro
-						if (vm.Registrador_Valido(ir.r1)) {
+						if (vm.Valid_Register(ir.r1)) {
 							sub = reg[ir.r1] - ir.p;
 							if (sub < Integer.MIN_VALUE) {
 								ir.interruption = 1;
 							}
-							//execucao
+							//execution
 							else {
 								reg[ir.r1] = reg[ir.r1] - ir.p;
 								pcb.nextPC();
@@ -313,12 +313,12 @@ public class Sistema {
 
 					case ADD: // R1 ← R1 + R2
 						//tratamento erro
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
 							sum = reg[ir.r1] + reg[ir.r2];
 							if (sum > Integer.MAX_VALUE) {
 								ir.interruption = 1;
 							}
-							//execucao
+							//execution
 							else {
 								reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
 								pcb.nextPC();
@@ -330,12 +330,12 @@ public class Sistema {
 
 					case SUB: // R1 ← R1 - R2
 						//tratamento erro
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
 							sub = reg[ir.r1] - reg[ir.r2];
 							if (sub < Integer.MIN_VALUE) {
 								ir.interruption = 1;
 							}
-							//execucao
+							//execution
 							else {
 								reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
 								pcb.nextPC();
@@ -347,12 +347,12 @@ public class Sistema {
 
 					case MULT: // R1 ← R1 * R2
 						//tratamento erro
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
 							sum = (long) reg[ir.r1] * reg[ir.r2];
 							if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) {
 								ir.interruption = 1;
 							}
-							//execucao
+							//execution
 							else {
 								reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
 								pcb.nextPC();
@@ -363,7 +363,7 @@ public class Sistema {
 						break;
 
 					case LDI: // R1 ← k
-						if (vm.Registrador_Valido(ir.r1)) {
+						if (vm.Valid_Register(ir.r1)) {
 							reg[ir.r1] = ir.p;
 							pcb.nextPC();
 						} else {
@@ -373,8 +373,8 @@ public class Sistema {
 
 					case LDD: // R1 ← [A]
 						//validacao
-						if (vm.Registrador_Valido(ir.r1)) {
-							reg[ir.r1] = m[pcb.get_Endereco_Logico(ir.p)].p;
+						if (vm.Valid_Register(ir.r1)) {
+							reg[ir.r1] = m[pcb.getLogicAddress(ir.p)].p;
 							pcb.nextPC();
 						} else {
 							ir.interruption = 2;
@@ -382,9 +382,9 @@ public class Sistema {
 						break;
 
 					case STD: // [A] ← R1
-						if (vm.Registrador_Valido(ir.r1)) {
-							m[pcb.get_Endereco_Logico(ir.p)].opc = Opcode.DATA;
-							m[pcb.get_Endereco_Logico(ir.p)].p = reg[ir.r1];
+						if (vm.Valid_Register(ir.r1)) {
+							m[pcb.getLogicAddress(ir.p)].opc = Opcode.DATA;
+							m[pcb.getLogicAddress(ir.p)].p = reg[ir.r1];
 							pcb.nextPC();
 						} else {
 							ir.interruption = 2;
@@ -392,8 +392,8 @@ public class Sistema {
 						break;
 
 					case LDX: // R1 ← [R2]
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
-							reg[ir.r1] = m[pcb.get_Endereco_Logico(reg[ir.r2])].p;
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
+							reg[ir.r1] = m[pcb.getLogicAddress(reg[ir.r2])].p;
 							pcb.nextPC();
 						} else {
 							ir.interruption = 2;
@@ -401,9 +401,9 @@ public class Sistema {
 						break;
 
 					case STX: // [R1] ← R2
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
-							m[pcb.get_Endereco_Logico(reg[ir.r1])].opc = Opcode.DATA;
-							m[pcb.get_Endereco_Logico(reg[ir.r1])].p = reg[ir.r2];
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
+							m[pcb.getLogicAddress(reg[ir.r1])].opc = Opcode.DATA;
+							m[pcb.getLogicAddress(reg[ir.r1])].p = reg[ir.r2];
 							pcb.nextPC();
 						} else {
 							ir.interruption = 2;
@@ -411,7 +411,7 @@ public class Sistema {
 						break;
 
 					case SWAP: //T ← Ra Ra ← Rb Rb ←T
-						if (vm.Registrador_Valido(ir.r1) && vm.Registrador_Valido(ir.r2)) {
+						if (vm.Valid_Register(ir.r1) && vm.Valid_Register(ir.r2)) {
 							int t = reg[ir.r1];
 							reg[ir.r1] = reg[ir.r2];
 							reg[ir.r2] = t;
@@ -430,40 +430,40 @@ public class Sistema {
 				if (ir.interruption != 0) {
 					if (ir.interruption == 1) //Overflow em uma operacao aritmetica
 					{
-						Tratamento_Overflow(ir);
-						vm.controleMemoria.ResetProgram(program);
+						overflowInterruption(ir);
+						vm.memoryManager.ResetProgram(program);
 						break;
 					} else if (ir.interruption == 2) //acessou um endereço invalido de memoria (ArrayOutOfBound)
 					{
-						Tratamento_Endereco_Invalido(ir);
-						vm.controleMemoria.ResetProgram(program);
+						invalidAddressInterruption(ir);
+						vm.memoryManager.ResetProgram(program);
 						break;
 					} else if (ir.interruption == 3) //Instrucao Invalida
 					{
-						Tratamento_Opcode_Invalido(ir);
-						vm.controleMemoria.ResetProgram(program);
+						invalidOpcodeInterruption(ir);
+						vm.memoryManager.ResetProgram(program);
 						break;
 					} else if (ir.interruption == 4) //opcode STOP em sí
 					{
-						Tratamento_STOP();
-						vm.controleMemoria.ResetProgram(program);
+						stopInterruption();
+						vm.memoryManager.ResetProgram(program);
 						break;
 					} else if (ir.interruption == 5) //sem memoria disponivel
 					{
-						Tratamento_Sem_Memoria_Disponivel(ir);
+						noMemoryAvailableInterruption(ir);
 						break;
 					}
 					// FASE 5* (START)
 					else if (ir.interruption == 6){
 						program.reg = this.reg;
-						vm.controleEscalonamento.FimDaFila(program);
-						System.out.println(program.estadoPrograma+" -> " + "Programa["+ program.getIdProg() +" - "+ program.getPrograma() +"]"+" PC = "+ pcb.pc_);
+						vm.schedulerManager.FimDaFila(program);
+						java.lang.System.out.println(program.programState +" -> " + "Programa["+ program.getIdProg() +" - "+ program.getProgram() +"]"+" PC = "+ pcb.pc_);
 						break;
 					}
 					// FASE 5* (FINISH)
 				}
 				// FASE 5* (START)
-				System.out.println(program.estadoPrograma+" -> " + "Programa["+ program.getIdProg() +" - "+ program.getPrograma() +"]"+" PC = "+ pcb.pc_);
+				java.lang.System.out.println(program.programState +" -> " + "Programa["+ program.getIdProg() +" - "+ program.getProgram() +"]"+" PC = "+ pcb.pc_);
 				// FASE 5* (FINISH)
 			}
 		}
@@ -479,40 +479,40 @@ public class Sistema {
 	// ------------------- V M  - constituida de CPU e MEMORIA -----------------------------------------------
 	// -------------------------- atributos e construcao da VM -----------------------------------------------
 	public class VM {
+
+		//atributos
 		public int tamMem;
 		public Word[] m;
 		public CPU cpu;
 		// FASE 4 (START)
-		public ControleMemoria controleMemoria;
-
+		public MemoryManager memoryManager;
 		// FASE 4 (FINISH)
-
 		// FASE 5* (START)
 		public int rr_q;
-		public ControleEscalonamento controleEscalonamento;
+		public SchedulerManager schedulerManager;
 		// FASE 5* (FINISH)
 
-
+		//construtor
 		public VM() {   // vm deve ser configurada com endereço de tratamento de interrupcoes
 			// memória
 			tamMem = 1024;
 			// FASE 4 (START)
 			int tamFrame = 16;
-			controleMemoria = new ControleMemoria(tamMem, tamFrame);
+			memoryManager = new MemoryManager(tamMem, tamFrame);
 			// FASE 4 (FINISH)
 			m = new Word[tamMem]; // m ee a memoria
 			for (int i = 0; i < tamMem; i++) { m[i] = new Word(Opcode.___, -1, -1, -1); }
 
 			// FASE 5* (START)
 			rr_q = 5;
-			this.controleEscalonamento = new ControleEscalonamento();
+			this.schedulerManager = new SchedulerManager();
 			// FASE 5* (FINISH)
 
 			// cpu
 			cpu = new CPU(m);
 		}
 
-		public boolean Registrador_Valido(int reg_n) {
+		public boolean Valid_Register(int reg_n) {
 			return (reg_n >= 0 && reg_n <= 9);
 		}
 	}
@@ -528,68 +528,62 @@ public class Sistema {
 	// ------------------- S O F T W A R E - inicio ----------------------------------------------------------
 
 	// region Tratamento Interrupcao
-	public static void Tratamento_Overflow(Word w) {
-		OutputTratamento(w);
-		System.out.println("Houve Overflow na operação aritmética");
+	public static void overflowInterruption(Word w) {
+		interruptionOutput(w);
+		java.lang.System.out.println("There was an overflow in a arithmetic operation.");
 	}
 
-	public static void Tratamento_Opcode_Invalido(Word w) {
-		OutputTratamento(w);
-		System.out.println("Operação " + "[ " + w.opc + " ]" + " nao identificada.");
+	public static void invalidOpcodeInterruption(Word w) {
+		interruptionOutput(w);
+		java.lang.System.out.println("Operation " + "[ " + w.opc + " ]" + " invalid.");
 	}
 
-	public static void Tratamento_Endereco_Invalido(Word w) {
-		OutputTratamento(w);
-		System.out.println("O endereço de memória ou registrador referenciado não existe.");
+	public static void invalidAddressInterruption(Word w) {
+		interruptionOutput(w);
+		java.lang.System.out.println("The memory address or register tried to be accessed does not exists.");
 	}
 
-	public static void Tratamento_STOP() {
-		System.out.println("---------------------------------- fim do programa ");
+	public static void stopInterruption() {
+		java.lang.System.out.println("---------------------------------- System end ");
 	}
 
-	public static void Tratamento_Sem_Memoria_Disponivel(Word w){
-		OutputTratamento(w);
-		System.out.println("Nao há memória livre. Favor, remova um programa da memória");
+	public static void noMemoryAvailableInterruption(Word w){
+		interruptionOutput(w);
+		java.lang.System.out.println("There is no memory left. Please, remove a program from the memory.");
 	}
 
-	public static void Tratamento_Sem_Memoria_Disponivel(){
-		System.out.println("**Interrupção de Sistema: \n " +
-				           "Nao há memória livre. Favor, remova um programa da memória");
+	public static void noMemoryAvailableInterruption(){
+		java.lang.System.out.println("**System Interruption: \n " +
+				           "There is no memory left. Please, remove a program from the memory.");
 	}
 
-	public static void Tratamento_Programa_Nao_Encontrado() {
-		System.out.println("Este programa nao foi encontrado em memória.");
+	public static void programNotFoundInterruption() {
+		java.lang.System.out.println("This program was not found in memory.");
 	}
 
-	public static void Tratamento_Memoria_Vazia() {
-		System.out.println("Memoria vazia, favor adicione um programa com a opção [ 2 ]");
+	public static void emptyMemoryInterruption() {
+		java.lang.System.out.println("Empty memory, please add a program to it with the option [ 2 ] from the main menu.");
 	}
 
-	public static void Tratamento_Menu_Opcao_Invalida(){
-		System.out.println(" Opcao invalida, tente novamente.");
+	public static void invalidMenuOptionInterruption(){
+		java.lang.System.out.println(" Invalid option, try again.");
 	}
 
-	private static void OutputTratamento(Word w) {
-		System.out.print("**Interrupção de Sistema: \n " +
-				         "**Erro na intrução: [ ");
-		System.out.print(w.opc);
-		System.out.print(", ");
-		System.out.print(w.r1);
-		System.out.print(", ");
-		System.out.print(w.r2);
-		System.out.print(", ");
-		System.out.print(w.p);
-		System.out.print("  ] ");
+	private static void interruptionOutput(Word w) {
+		java.lang.System.out.print("**System Interruption: \n " +
+				         "**Instruction Error: [ ");
+		Aux.dump_output(w);
+		java.lang.System.out.print("  ] ");
 	}
 	//endregion
 
 	//region TRAP
 	public void Trap_OUT(int p) {
-		System.out.println(p);
+		java.lang.System.out.println(p);
 	}
 
 	public int Trap_IN() {
-		Scanner teclado = new Scanner(System.in);
+		Scanner teclado = new Scanner(java.lang.System.in);
 		return teclado.nextInt();
 	}
 	//endregion
@@ -600,7 +594,7 @@ public class Sistema {
 
 	public VM vm;
 
-	public Sistema(){   // a VM com tratamento de interrupções
+	public System(){   // a VM com tratamento de interrupções
 		vm = new VM();
 	}
 
@@ -610,134 +604,127 @@ public class Sistema {
 
 	// -------------------------------------------------------------------------------------------------------
 	// ------------------- instancia e testa sistema
-	public static Scanner teclado = new Scanner(System.in);
+	public static Scanner teclado = new Scanner(java.lang.System.in);
 
 	public static void main(String[] args){
-		Sistema s = new Sistema();
-		Menu_Opcoes(s);
+		System s = new System();
+		menuOptions(s);
 	}
 	//region Main Menu
 
 	//FASE 4 (START)
-	public static void Menu_Opcoes(Sistema s){
-		int menu_opcoes = -1;
+	public static void menuOptions(System s){
+		int menuOptions = -1;
 		do{
-			System.out.println("--------- MENU DE OPCOES S.O. ---------");
-			System.out.println(" [1] - Rodar programa existente em memoria");
-			System.out.println(" [2] - Adicionar programa a memoria");
-			System.out.println(" [3] - Remover programa da memória");
-			System.out.println(" [4] - Rodar todos programas em memória");
-			System.out.println(" [5] - Dump de memória de um programa específico");
-			System.out.println(" [0] - Sair");
-			menu_opcoes = teclado.nextInt();
+			java.lang.System.out.println("--------- MENU DE OPCOES S.O. ---------");
+			java.lang.System.out.println(" [1] - Rodar programa existente em memoria");
+			java.lang.System.out.println(" [2] - Adicionar programa a memoria");
+			java.lang.System.out.println(" [3] - Remover programa da memória");
+			java.lang.System.out.println(" [4] - Rodar todos programas em memória");
+			java.lang.System.out.println(" [5] - Dump de memória de um programa específico");
+			java.lang.System.out.println(" [0] - Sair");
+			menuOptions = teclado.nextInt();
 
-			switch(menu_opcoes){
+			switch(menuOptions){
 				case 0:
-					System.out.println("---------------------------------- fim sistema ");
+					java.lang.System.out.println("---------------------------------- Systems end ");
 					break;
 				case 1:
-					Menu_Roda_Prog(s);
+					runProgMenu(s);
 					break;
 				case 2:
-					Menu_Carrega_Prog(s);
+					loadProgMenu(s);
 					break;
 				case 3:
-					Menu_Remove_Prog(s);
+					removeProgMenu(s);
 					break;
 				case 4:
-					Menu_Run_All(s);
+					runAllMenu(s);
 					break;
 				case 5:
-					Menu_Dump_Programa(s);
+					dumpProgMenu(s);
 					break;
 				default:
-					Tratamento_Menu_Opcao_Invalida();
+					invalidMenuOptionInterruption();
 					break;
 			}
 
-		}while (menu_opcoes >0);
+		}while (menuOptions >0);
 	}
 
 
-	public static void Menu_Dump_Programa(Sistema s) {
-		if (!s.vm.controleMemoria.getProgramas_em_memoria().isEmpty()){
+	public static void dumpProgMenu(System s) {
+		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
 			Progs progs = Progs.___;
-			boolean excecao = false;
-			ArrayList<Integer> frames_reservados = new ArrayList<>();
-			System.out.println("------- Programas disponiveis em memória");
-			for (ProcessControlBlock p : s.vm.controleMemoria.getProgramas_em_memoria()) {
-				s.vm.controleMemoria.getFramesProg(p.getIdProg(), frames_reservados);
-				System.out.println(p.toString() + " Frames:" + frames_reservados.toString());
+			ArrayList<Integer> reservedFrames = new ArrayList<>();
+			java.lang.System.out.println("------- Programs available in memory");
+			for (ProcessControlBlock p : s.vm.memoryManager.getProgramsInMemory()) {
+				s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
+				java.lang.System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
 			}
-			System.out.println("-------");
-			System.out.println("Digite o numero do programa:");
+			java.lang.System.out.println("-------");
+			java.lang.System.out.println("Type the program's number:");
 			int idProg = teclado.nextInt();
 			teclado.nextLine();
-			System.out.println("-------");
-			if (s.vm.controleMemoria.Existe_Programa(idProg)){
+			java.lang.System.out.println("-------");
+			if (s.vm.memoryManager.existProgram(idProg)){
 				Aux aux = new Aux();
-				aux.dump_atualizado(s.vm,idProg);
+				aux.dump(s.vm,idProg);
 			}
 			else
 			{
-				if(!excecao) {
-					Tratamento_Programa_Nao_Encontrado();
-				}
+				programNotFoundInterruption();
 			}
 		}
 		else
 		{
-			Tratamento_Memoria_Vazia();
+			emptyMemoryInterruption();
 		}
 	}
 
-
-	public static void Menu_Roda_Prog(Sistema s){
-		if (!s.vm.controleMemoria.getProgramas_em_memoria().isEmpty()){
+	public static void runProgMenu(System s){
+		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
 			Progs progs = Progs.___;
-			boolean excecao = false;
-			ArrayList<Integer> frames_reservados = new ArrayList<>();
-			System.out.println("------- Programas disponiveis em memória");
-			for (ProcessControlBlock p : s.vm.controleMemoria.getProgramas_em_memoria()) {
-				s.vm.controleMemoria.getFramesProg(p.getIdProg(), frames_reservados);
-				System.out.println(p.toString() + " Frames:" + frames_reservados.toString());
+			ArrayList<Integer> reservedFrames = new ArrayList<>();
+			java.lang.System.out.println("------- Programs available in memory");
+			for (ProcessControlBlock p : s.vm.memoryManager.getProgramsInMemory()) {
+				s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
+				java.lang.System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
 			}
-			System.out.println("-------");
-			System.out.println("Digite o numero do programa: ");
+			java.lang.System.out.println("-------");
+			java.lang.System.out.println("Type the program's number: ");
 			int idProg = teclado.nextInt();
 			teclado.nextLine();
-			System.out.println("-------");
-			if (s.vm.controleMemoria.Existe_Programa(idProg)){
+			java.lang.System.out.println("-------");
+			if (s.vm.memoryManager.existProgram(idProg)){
 				ArrayList<ProcessControlBlock> array_aux = new ArrayList<>();
-				array_aux.add(s.vm.controleMemoria.getPCB(idProg));
-				s.vm.controleEscalonamento.Run(array_aux);
+				array_aux.add(s.vm.memoryManager.getPCB(idProg));
+				s.vm.schedulerManager.Run(array_aux);
 			}
 			else
 			{
-				if(!excecao) {
-					Tratamento_Programa_Nao_Encontrado();
-				}
-			}
+                programNotFoundInterruption();
+            }
 		}
 		else
 		{
-			Tratamento_Memoria_Vazia();
+			emptyMemoryInterruption();
 		}
 	}
 
-	public static void Menu_Carrega_Prog(Sistema s) {
+	public static void loadProgMenu(System s) {
 		int opcao_menu = -1;
-		System.out.println("--------- ESCOLHA O PROGRAMA ---------");
-		System.out.println(" [1] - ProgMin");
-		System.out.println(" [2] - Fibonacci");
-		System.out.println(" [3] - Fatorial");
-		System.out.println(" [4] - BubbleSort");
-		System.out.println(" [0] - Sair");
+		java.lang.System.out.println("--------- ESCOLHA O PROGRAMA ---------");
+		java.lang.System.out.println(" [1] - ProgMin");
+		java.lang.System.out.println(" [2] - Fibonacci");
+		java.lang.System.out.println(" [3] - Fatorial");
+		java.lang.System.out.println(" [4] - BubbleSort");
+		java.lang.System.out.println(" [0] - Sair");
 		opcao_menu = teclado.nextInt();
 
 		switch (opcao_menu) {
 			case 0:
-				System.out.println("---------------------------------- voltando ao menu principal ");
+				java.lang.System.out.println("---------------------------------- voltando ao menu principal ");
 				break;
 			case 1:
 				s.test_prog_minimo();
@@ -753,41 +740,41 @@ public class Sistema {
 				s.test_bubble_sort();
 				break;
 			default:
-				Tratamento_Menu_Opcao_Invalida();
+				invalidMenuOptionInterruption();
 				break;
 		}
 	}
 
-	public static void Menu_Remove_Prog(Sistema s){
+	public static void removeProgMenu(System s){
 		Progs progs = Progs.___;
-		ArrayList<Integer> frames_reservados = new ArrayList<>();
-		System.out.println("------- Programas disponiveis em memória");
-		for (ProcessControlBlock p : s.vm.controleMemoria.getProgramas_em_memoria()) {
-			s.vm.controleMemoria.getFramesProg(p.getIdProg(), frames_reservados);
-			System.out.println(p.toString() + " Frames:" + frames_reservados.toString());
+		ArrayList<Integer> reservedFrames = new ArrayList<>();
+		java.lang.System.out.println("------- Programs available in memory");
+		for (ProcessControlBlock p : s.vm.memoryManager.getProgramsInMemory()) {
+			s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
+			java.lang.System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
 		}
-		System.out.println("-------");
-		System.out.println("Digite o numero do programa: ");
+		java.lang.System.out.println("-------");
+		java.lang.System.out.println("Type the program's number: ");
 		int idProg = teclado.nextInt();
 		teclado.nextLine();
-		System.out.println("-------");
-		if (s.vm.controleMemoria.Existe_Programa(idProg)){
-			System.out.println("Programa [ " + idProg+ " ] [ " + s.vm.controleMemoria.getProgramas_em_memoria().get(s.vm.controleMemoria.getProgEmMemoria(idProg)).getPrograma() +  " ] foi excluído com sucesso.");
-			s.vm.controleMemoria.Desaloca_Frames(idProg);
+		java.lang.System.out.println("-------");
+		if (s.vm.memoryManager.existProgram(idProg)){
+			java.lang.System.out.println("Program [ " + idProg+ " ] [ " + s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).getProgram() +  " ] was removed with success.");
+			s.vm.memoryManager.framesDeallocation(idProg);
 		}
 		else{
-			Tratamento_Menu_Opcao_Invalida();
+			invalidMenuOptionInterruption();
 		}
 	}
 	// FASE 4 (FINISH)
 
 	// FASE 5* (START)
-	public static void Menu_Run_All(Sistema s) {
-		if (s.vm.controleMemoria.TemProgramaEmReady()) {
-			s.vm.controleEscalonamento.Run(s.vm.controleMemoria.getProgramas_em_memoria());
+	public static void runAllMenu(System s) {
+		if (s.vm.memoryManager.existProgramReady()) {
+			s.vm.schedulerManager.Run(s.vm.memoryManager.getProgramsInMemory());
 		}
 		else{
-			Tratamento_Memoria_Vazia();
+			emptyMemoryInterruption();
 		}
 	}
 	// FASE 5* (FINISH)
@@ -803,13 +790,13 @@ public class Sistema {
 	public void test_prog_minimo(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().progMinimo;
-		aux.carga_atualizada(p,Progs.PROG_MINIMO, vm);
+		aux.memoryLoad(p,Progs.PROG_MINIMO, vm);
 	}
 
 	public void test_fibonacci10(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().fibonacci10;
-		aux.carga_atualizada(p,Progs.FIBBONACI10, vm);
+		aux.memoryLoad(p,Progs.FIBBONACI10, vm);
 	}
 
 	// teste p3
@@ -817,13 +804,13 @@ public class Sistema {
 	public void test_fatorial(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().p3;
-		aux.carga_atualizada(p,Progs.FATORIAL, vm);
+		aux.memoryLoad(p,Progs.FATORIAL, vm);
 	}
 
 	public void test_bubble_sort(){
 		Aux aux = new Aux();
 		Word[] p = new Programas().p3;
-		aux.carga_atualizada(p,Progs.BUBBLE_SORT, vm);
+		aux.memoryLoad(p,Progs.BUBBLE_SORT, vm);
 	}
 	//endregion
 
@@ -831,53 +818,57 @@ public class Sistema {
 	
 	public static class Aux {
 		public void dump(Word w) {
-			System.out.print("[ ");
-			System.out.print(w.opc);
-			System.out.print(", ");
-			System.out.print(w.r1);
-			System.out.print(", ");
-			System.out.print(w.r2);
-			System.out.print(", ");
-			System.out.print(w.p);
-			System.out.println("  ] ");
+			java.lang.System.out.print("[ ");
+			dump_output(w);
+			java.lang.System.out.println("  ] ");
+		}
+
+		private static void dump_output(Word w) {
+			java.lang.System.out.print(w.opc);
+			java.lang.System.out.print(", ");
+			java.lang.System.out.print(w.r1);
+			java.lang.System.out.print(", ");
+			java.lang.System.out.print(w.r2);
+			java.lang.System.out.print(", ");
+			java.lang.System.out.print(w.p);
 		}
 
 		public void dump(Word[] m, int ini, int fim) {
 			for (int i = ini; i <= fim; i++) {
-				System.out.print(i);
-				System.out.print(":  ");
+				java.lang.System.out.print(i);
+				java.lang.System.out.print(":  ");
 				dump(m[i]);
 			}
 		}
 
 		// FASE 4 (START)
-		public void dump_atualizado(VM vm, int idProg) {
+		public void dump(VM vm, int idProg) {
 			ArrayList<Integer> frames_reservados = new ArrayList<>();
-			if(vm.controleMemoria.getFramesProg(idProg,frames_reservados)){
+			if(vm.memoryManager.getFramesProg(idProg,frames_reservados)){
 				for (int i = 0; i < frames_reservados.size(); i++) {
-					System.out.println("---- Frame [" + frames_reservados.get(i) + " ]");
-					dump(vm.m, (frames_reservados.get(i) * vm.controleMemoria.getTamanho_frame()), (((frames_reservados.get(i) + 1) * vm.controleMemoria.getTamanho_frame()) - 1));
+					java.lang.System.out.println("---- Frame [" + frames_reservados.get(i) + " ]");
+					dump(vm.m, (frames_reservados.get(i) * vm.memoryManager.getframeSize()), (((frames_reservados.get(i) + 1) * vm.memoryManager.getframeSize()) - 1));
 				}
 			}
 			else
 			{
-				Tratamento_Programa_Nao_Encontrado();
+				programNotFoundInterruption();
 			}
 		}
 
-		public void carga_atualizada(Word[] p, Progs nomePrograma, VM vm) {
+		public void memoryLoad(Word[] p, Progs nomePrograma, VM vm) {
 			ArrayList<Integer> frames_reservados = new ArrayList<>();
-			if (vm.controleMemoria.Existe_Frames_Livres(p.length, frames_reservados)) {
-				vm.controleMemoria.Aloca_Frames(frames_reservados, p, nomePrograma);
-				System.out.println("Programa carregado com sucesso.");
-				System.out.print("Frames Reservados ");
+			if (vm.memoryManager.existsEmptyFrames(p.length, frames_reservados)) {
+				vm.memoryManager.framesAllocation(frames_reservados, p, nomePrograma);
+				java.lang.System.out.println("Programa carregado com sucesso.");
+				java.lang.System.out.print("Frames Reservados ");
 				for (int i : frames_reservados) {
-					System.out.print("- [ " + i + " ]");
+					java.lang.System.out.print("- [ " + i + " ]");
 				}
-				System.out.println();
+				java.lang.System.out.println();
 			}
 			else{
-				Tratamento_Sem_Memoria_Disponivel();
+				noMemoryAvailableInterruption();
 			}
 		}
 	}
@@ -887,13 +878,13 @@ public class Sistema {
 	// region Classes
 
 	//FASE 5* (START)
-	public class ControleEscalonamento{
+	public class SchedulerManager {
 
 		//atributos
 		private ArrayList<ProcessControlBlock> fila_exec;
 
 		//construtor
-		public ControleEscalonamento(){
+		public SchedulerManager(){
 			fila_exec = new ArrayList<>();
 		}
 
@@ -901,12 +892,12 @@ public class Sistema {
 		public void FimDaFila(ProcessControlBlock program){
 			ProcessControlBlock aux_ = this.fila_exec.remove(fila_exec.indexOf(program));
 			this.fila_exec.add(aux_);
-			this.fila_exec.get(this.fila_exec.indexOf(aux_)).estadoPrograma=EstadoPrograma.READY;
+			this.fila_exec.get(this.fila_exec.indexOf(aux_)).programState = ProgramState.READY;
 		}
 
 		public ProcessControlBlock getProximoProgReady() {
 			for (ProcessControlBlock program : fila_exec) {
-				if (program.estadoPrograma.equals(EstadoPrograma.READY)){
+				if (program.programState.equals(ProgramState.READY)){
 					return program;
 				}
 			}
@@ -915,21 +906,21 @@ public class Sistema {
 
 		public void Run(ArrayList<ProcessControlBlock> programas) {
 			this.fila_exec.addAll(programas); // adiciona programas na fila de exercucao
-			while(this.TemProximoProgReady()){ // check se tem prog em ready
+			while(this.ExisteProximoProgReady()){ // check se tem prog em ready
 				vm.cpu.run(this.getProximoProgReady()); //roda o proximo ready da fila
 			}
 			// qnd acaba, limpa fila e reseta os programas
 			this.fila_exec.clear();
 			for (ProcessControlBlock pcb : programas) {
-			    vm.controleMemoria.ResetProgram(pcb);
-			    pcb.estadoPrograma=EstadoPrograma.READY;
+			    vm.memoryManager.ResetProgram(pcb);
+			    pcb.programState = ProgramState.READY;
 			}
 			
 		}
 
-		private boolean TemProximoProgReady() {
+		private boolean ExisteProximoProgReady() {
 			for (ProcessControlBlock pcb : fila_exec) {
-			    if(pcb.estadoPrograma.equals(EstadoPrograma.READY)){
+			    if(pcb.programState.equals(ProgramState.READY)){
 			    	return true;
 				}
 			}
@@ -940,177 +931,42 @@ public class Sistema {
 	}
 	//FASE 5* (FINISH)
 
-	public class ControleMemoria {
+	public class MemoryManager {
 
 		//region atributos
 		private Frame[] frames;
-		private int tamanho_frame;
-		private ArrayList<ProcessControlBlock> programas_em_memoria;
+		private int sizeFrame;
+		private ArrayList<ProcessControlBlock> programsInMemory;
 		//endregion
 
 		// construtor
-		public ControleMemoria(int tamanho_memoria, int tamanho_frame) {
-			setFrames(new Frame[(tamanho_memoria / tamanho_frame)]);
-			setProgramas_em_memoria(new ArrayList<>());
-			for (int i = 0; i < tamanho_memoria/tamanho_frame; i++) {
+		public MemoryManager(int memorySize, int sizeFrame) {
+			setFrames(new Frame[(memorySize / sizeFrame)]);
+			setProgramsInMemory(new ArrayList<>());
+			for (int i = 0; i < memorySize/ sizeFrame; i++) {
 				getFrames()[i] = new Frame(i,true,Progs.___,0);
 			}
-			this.setTamanho_frame(tamanho_frame);
+			this.setSizeFrame(sizeFrame);
 		}
 
 		// region Metodos
-		public ProcessControlBlock getPCB(int idProg){
-			for (ProcessControlBlock pcb : getProgramas_em_memoria()) {
-				if(pcb.getIdProg() ==idProg){
-					return pcb;
-				}
-			}
-			return null;
+
+		//region getters e setters
+
+		public ArrayList<ProcessControlBlock> getProgramsInMemory() {
+			return programsInMemory;
 		}
 
-		public void addFrames(ArrayList<Integer> frames_prog,int idProg){
-			this.getProgramas_em_memoria().get(this.getProgramas_em_memoria().indexOf(getPCB(idProg))).getFrames_prog().addAll(frames_prog);
+		public void setProgramsInMemory(ArrayList<ProcessControlBlock> programsInMemory) {
+			this.programsInMemory = programsInMemory;
 		}
 
-		public int getProgEmMemoria (int idProg){
-			for (ProcessControlBlock progs : getProgramas_em_memoria()) {
-				if (progs.getIdProg() ==idProg){
-					return getProgramas_em_memoria().indexOf(progs);
-				}
-			}
-			return -1;
+		public int getframeSize() {
+			return sizeFrame;
 		}
 
-		public boolean Existe_Programa(int idProg){
-			for (ProcessControlBlock prog : getProgramas_em_memoria()) {
-				if (prog.getIdProg() ==idProg){
-					return true;
-				}
-			}
-			return false;
-		}
-
-		public int getNextId() {
-			int maior=0;
-			for (ProcessControlBlock prog : getProgramas_em_memoria()) {
-				if(prog.getIdProg() >maior){
-					maior = prog.getIdProg();
-				}
-			}
-			return maior+1;
-		}
-
-		public boolean getFramesProg(int idProg, ArrayList<Integer> frames_reservados) {
-			for (ProcessControlBlock prog : getProgramas_em_memoria()) {
-				if(prog.getIdProg() ==idProg){
-					frames_reservados.clear();
-					frames_reservados.addAll(prog.getFrames_prog());
-					return true;
-				}
-			}
-			return false;
-		}
-
-		public boolean Existe_Frames_Livres(double tamProg, ArrayList<Integer> frames_reservados) {
-			int qnt_frames_necessarios = (int)Math.ceil(tamProg / vm.controleMemoria.getTamanho_frame());
-			int cont = 0;
-			for (int i = 0; i < vm.controleMemoria.getFrames().length; i++) {
-				if (vm.controleMemoria.getFrames()[i].isFrame_livre()) {
-					frames_reservados.add(i);
-					cont++;
-					if (cont == qnt_frames_necessarios) {
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-
-		public void Aloca_Frames(ArrayList<Integer> frames_reservados, Word[] p, Progs nomePrograma){
-			int cont=0;
-			int max_id = getNextId();
-			for (Integer frames_reservado : frames_reservados) {
-				for (int j = (frames_reservado * vm.controleMemoria.getTamanho_frame()); j <= (((frames_reservado + 1) * vm.controleMemoria.getTamanho_frame()) - 1) && cont < p.length ; j++) {
-					vm.m[j].opc = p[cont].opc;
-					vm.m[j].r1 = p[cont].r1;
-					vm.m[j].r2 = p[cont].r2;
-					vm.m[j].p = p[cont].p;
-					cont++;
-				}
-				vm.controleMemoria.getFrames()[frames_reservado].setPrograma(nomePrograma, max_id);
-			}
-			vm.controleMemoria.getProgramas_em_memoria().add(new ProcessControlBlock(nomePrograma,max_id,frames_reservados));
-		}
-
-		public void Aloca_Mais_Frames(ArrayList<Integer> frames_reservados, int idProg, Progs nomePrograma){
-			int cont=0;
-			for (Integer frames_reservado : frames_reservados) {
-				vm.controleMemoria.getFrames()[frames_reservado].setPrograma(nomePrograma, idProg);
-			}
-			vm.controleMemoria.addFrames(frames_reservados,idProg);
-		}
-
-		public void Desaloca_Frames(int idProg){
-			for (Frame frame : getFrames()) {
-				if (frame.getIdProg() == idProg){
-					ResetFrames(frame);
-				}
-			}
-			int aux_ = getProgEmMemoria(idProg);
-			if (aux_>=0) {
-				getProgramas_em_memoria().remove(aux_);
-			}
-		}
-
-		private void ResetFrames(Frame frame) {
-			for (int j = (frame.getId_frame() * vm.controleMemoria.getTamanho_frame()); j < (((frame.getId_frame() + 1) * vm.controleMemoria.getTamanho_frame()) - 1); j++) {
-				vm.m[j].opc = Opcode.___;
-				vm.m[j].r1 = -1;
-				vm.m[j].r2 = -1;
-				vm.m[j].p = -1;
-			}
-			frame.setIdProg(0);
-			frame.setNomeProg(Progs.___);
-			frame.setFrame_livre(true);
-		}
-
-		public boolean TemProgramaEmReady() {
-			for (ProcessControlBlock program : getProgramas_em_memoria()) {
-			    if (program.estadoPrograma.equals(EstadoPrograma.READY)){
-			    	return true;
-				}
-			}
-			return false;
-		}
-
-		public void ResetProgram(ProcessControlBlock program) {
-			ProcessControlBlock prog = getProgramas_em_memoria().get(getProgramas_em_memoria().indexOf(program));
-			prog.pc_ = 0;
-			prog.contFrameAtual=0;
-			prog.index_frames=0;
-			for (Frame frame : this.getFrames()) {
-				if (frame.getIdProg() == program.getIdProg()){
-					for (int j = (frame.getId_frame() * vm.controleMemoria.getTamanho_frame()); j < (((frame.getId_frame() + 1) * vm.controleMemoria.getTamanho_frame()) - 1); j++) {
-					    vm.m[j].interruption = 0;
-					}
-				}
-			}
-		}
-
-		public ArrayList<ProcessControlBlock> getProgramas_em_memoria() {
-			return programas_em_memoria;
-		}
-
-		public void setProgramas_em_memoria(ArrayList<ProcessControlBlock> programas_em_memoria) {
-			this.programas_em_memoria = programas_em_memoria;
-		}
-
-		public int getTamanho_frame() {
-			return tamanho_frame;
-		}
-
-		public void setTamanho_frame(int tamanho_frame) {
-			this.tamanho_frame = tamanho_frame;
+		public void setSizeFrame(int sizeFrame) {
+			this.sizeFrame = sizeFrame;
 		}
 
 		public Frame[] getFrames() {
@@ -1121,53 +977,178 @@ public class Sistema {
 			this.frames = frames;
 		}
 
+		public ProcessControlBlock getPCB(int idProg){
+			for (ProcessControlBlock pcb : getProgramsInMemory()) {
+				if(pcb.getIdProg() ==idProg){
+					return pcb;
+				}
+			}
+			return null;
+		}
+
+		public int getIndexOfProgInMemory(int idProg){
+			for (ProcessControlBlock progs : getProgramsInMemory()) {
+				if (progs.getIdProg() ==idProg){
+					return getProgramsInMemory().indexOf(progs);
+				}
+			}
+			return -1;
+		}
+
+		public int getNextId() {
+			int maior=0;
+			for (ProcessControlBlock prog : getProgramsInMemory()) {
+				if(prog.getIdProg() >maior){
+					maior = prog.getIdProg();
+				}
+			}
+			return maior+1;
+		}
+
+		public boolean getFramesProg(int idProg, ArrayList<Integer> frames_reservados) {
+			for (ProcessControlBlock prog : getProgramsInMemory()) {
+				if(prog.getIdProg() ==idProg){
+					frames_reservados.clear();
+					frames_reservados.addAll(prog.getFramesProg());
+					return true;
+				}
+			}
+			return false;
+		}
+		//endregion
+
+		public boolean existProgram(int idProg){
+			for (ProcessControlBlock prog : getProgramsInMemory()) {
+				if (prog.getIdProg() ==idProg){
+					return true;
+				}
+			}
+			return false;
+		}
+
+
+		public boolean existsEmptyFrames(double tamProg, ArrayList<Integer> frames_reservados) {
+			int qnt_frames_necessarios = (int)Math.ceil(tamProg / vm.memoryManager.getframeSize());
+			int cont = 0;
+			for (int i = 0; i < vm.memoryManager.getFrames().length; i++) {
+				if (vm.memoryManager.getFrames()[i].isEmptyFrame()) {
+					frames_reservados.add(i);
+					cont++;
+					if (cont == qnt_frames_necessarios) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		public void framesAllocation(ArrayList<Integer> frames_reservados, Word[] p, Progs nomePrograma){
+			int cont=0;
+			int max_id = getNextId();
+			for (Integer frames_reservado : frames_reservados) {
+				for (int j = (frames_reservado * vm.memoryManager.getframeSize()); j <= (((frames_reservado + 1) * vm.memoryManager.getframeSize()) - 1) && cont < p.length ; j++) {
+					vm.m[j].opc = p[cont].opc;
+					vm.m[j].r1 = p[cont].r1;
+					vm.m[j].r2 = p[cont].r2;
+					vm.m[j].p = p[cont].p;
+					cont++;
+				}
+				vm.memoryManager.getFrames()[frames_reservado].setPrograma(nomePrograma, max_id);
+			}
+			vm.memoryManager.getProgramsInMemory().add(new ProcessControlBlock(nomePrograma,max_id,frames_reservados));
+		}
+
+		public void AllocateMoreFrames(ArrayList<Integer> frames_reservados, int idProg, Progs nomePrograma){
+			int cont=0;
+			for (Integer frames_reservado : frames_reservados) {
+				vm.memoryManager.getFrames()[frames_reservado].setPrograma(nomePrograma, idProg);
+			}
+			this.getProgramsInMemory().get(this.getProgramsInMemory().indexOf(getPCB(idProg))).getFramesProg().addAll(frames_reservados);
+		}
+
+		public void framesDeallocation(int idProg){
+			for (Frame frame : getFrames()) {
+				if (frame.getIdProg() == idProg){
+					resetFrames(frame);
+				}
+			}
+			int aux_ = getIndexOfProgInMemory(idProg);
+			if (aux_>=0) {
+				getProgramsInMemory().remove(aux_);
+			}
+		}
+
+		private void resetFrames(Frame frame) {
+			for (int j = (frame.getIdFrame() * vm.memoryManager.getframeSize()); j < (((frame.getIdFrame() + 1) * vm.memoryManager.getframeSize()) - 1); j++) {
+				vm.m[j].opc = Opcode.___;
+				vm.m[j].r1 = -1;
+				vm.m[j].r2 = -1;
+				vm.m[j].p = -1;
+			}
+			frame.setIdProg(0);
+			frame.setEmptyFrame(true);
+		}
+
+		public boolean existProgramReady() {
+			for (ProcessControlBlock program : getProgramsInMemory()) {
+			    if (program.programState.equals(ProgramState.READY)){
+			    	return true;
+				}
+			}
+			return false;
+		}
+
+		public void ResetProgram(ProcessControlBlock program) {
+			ProcessControlBlock prog = getProgramsInMemory().get(getProgramsInMemory().indexOf(program));
+			prog.pc_ = 0;
+			prog.countCurrentFrame =0;
+			prog.offset =0;
+			for (Frame frame : this.getFrames()) {
+				if (frame.getIdProg() == program.getIdProg()){
+					for (int j = (frame.getIdFrame() * vm.memoryManager.getframeSize()); j < (((frame.getIdFrame() + 1) * vm.memoryManager.getframeSize()) - 1); j++) {
+					    vm.m[j].interruption = 0;
+					}
+				}
+			}
+		}
+
+
 
 		// endregion
 
 		// region SubClasses: Frame
 		public class Frame {
-			private int id_frame;
-			private boolean frame_livre;
-			private Progs nomeProg;
+			private int idFrame;
+			private boolean emptyFrame;
 			private int idProg;
 
 			//contrutor
-			public Frame(int id_frame, boolean frame_livre, Progs nomeProg, int idProg) {
-				this.setId_frame(id_frame);
-				this.setFrame_livre(frame_livre);
-				this.setNomeProg(nomeProg);
+			public Frame(int idFrame, boolean emptyFrame, Progs nomeProg, int idProg) {
+				this.setIdFrame(idFrame);
+				this.setEmptyFrame(emptyFrame);
 				this.setIdProg(idProg);
 			}
 
 			//region Metodos
-			public boolean isFrame_livre() {
-				return frame_livre;
+			public boolean isEmptyFrame() {
+				return emptyFrame;
 			}
 
-			public void setFrame_livre(boolean frame_livre) {
-				this.frame_livre = frame_livre;
+			public void setEmptyFrame(boolean emptyFrame) {
+				this.emptyFrame = emptyFrame;
 			}
 
-			public void setPrograma (Progs nomeProg){
-				this.setNomeProg(nomeProg);
-				this.setIdProg(getNextId());
-			}
 			public void setPrograma (Progs nomeProg, int idProg){
-				this.setNomeProg(nomeProg);
 				this.setIdProg(idProg);
-				this.setFrame_livre(false);
+				this.setEmptyFrame(false);
 			}
 
-			public int getId_frame() {
-				return id_frame;
+			public int getIdFrame() {
+				return idFrame;
 			}
 
-			public void setId_frame(int id_frame) {
-				this.id_frame = id_frame;
-			}
-
-			public void setNomeProg(Progs nomeProg) {
-				this.nomeProg = nomeProg;
+			public void setIdFrame(int idFrame) {
+				this.idFrame = idFrame;
 			}
 
 			public int getIdProg() {
@@ -1184,30 +1165,30 @@ public class Sistema {
 	}
 
 	public class ProcessControlBlock {
-		private Progs programa;
+		private Progs program;
 		private int idProg;
-		private ArrayList<Integer> frames_prog;
-		private final int tamanho_frame;
-		private int contFrameAtual;
-		private int index_frames;
+		private ArrayList<Integer> framesProg;
+		private final int frameSize;
+		private int countCurrentFrame;
+		private int offset;
 		private int pc_;
 		private int[] reg;
 		// FASE 5* (START)
-		private EstadoPrograma estadoPrograma;
+		private ProgramState programState;
 		// FASE 5* (FINISH)
 
 		//construtor
-		public ProcessControlBlock(Progs programa, int idProg, ArrayList<Integer> frames_prog){
-			this.setPrograma(programa);
+		public ProcessControlBlock(Progs program, int idProg, ArrayList<Integer> framesProg){
+			this.setProgram(program);
 			this.setIdProg(idProg);
-			this.setFrames_prog(new ArrayList<>());
-			this.getFrames_prog().addAll(frames_prog);
-			this.tamanho_frame = vm.controleMemoria.getTamanho_frame();
-			this.contFrameAtual = 0;
-			this.index_frames = 0;
-			this.pc_ = frames_prog.get(0)*tamanho_frame;
+			this.setFramesProg(new ArrayList<>());
+			this.getFramesProg().addAll(framesProg);
+			this.frameSize = vm.memoryManager.getframeSize();
+			this.countCurrentFrame = 0;
+			this.offset = 0;
+			this.pc_ = framesProg.get(0)* frameSize;
 			// FASE 5* (START)
-			this.estadoPrograma = EstadoPrograma.READY;
+			this.programState = ProgramState.READY;
 			this.reg = new int[10];
 			// FASE 5* (FINISH)
 		}
@@ -1217,60 +1198,59 @@ public class Sistema {
 
 		@Override
 		public String toString() {
-			return " [ " + getIdProg() + " ] " +	"Programa: " + getPrograma();
+			return " [ " + getIdProg() + " ] " +	"Programa: " + getProgram();
 		}
 
 
 		public void nextPC(){
-			if((index_frames+1)==16){
-				contFrameAtual++;
-				index_frames=0;
+			if((offset +1)==16){
+				countCurrentFrame++;
+				offset =0;
 			}
 			else {
-				index_frames++;
+				offset++;
 			}
-			pc_ = (getFrames_prog().get(contFrameAtual)*tamanho_frame)+index_frames;
+			pc_ = (getFramesProg().get(countCurrentFrame)* frameSize)+ offset;
 		}
 
 
-		public void JMP_PC(int pc){
-			if (pc<tamanho_frame){
-				this.index_frames=pc;
-				this.contFrameAtual = 0;
-				this.pc_ = (getFrames_prog().get(contFrameAtual) * tamanho_frame) + index_frames;
+		public void jmpPc(int pc){
+			if (pc< frameSize){
+				this.offset =pc;
+				this.countCurrentFrame = 0;
 			}
 			else {
-				this.index_frames=pc%tamanho_frame;
-				if (Math.ceil((double) pc / tamanho_frame) > getFrames_prog().size()) {
-					ArrayList<Integer> mais_frames = new ArrayList<>();
-					if (vm.controleMemoria.Existe_Frames_Livres(16.0, mais_frames)) {
-						vm.controleMemoria.Aloca_Mais_Frames(mais_frames, this.getIdProg(), vm.controleMemoria.getProgramas_em_memoria().get(vm.controleMemoria.getProgEmMemoria(getIdProg())).getPrograma());
-						this.getFrames_prog().addAll(mais_frames);
+				this.offset =pc% frameSize;
+				if (Math.ceil((double) pc / frameSize) > getFramesProg().size()) {
+					ArrayList<Integer> moreFrames = new ArrayList<>();
+					if (vm.memoryManager.existsEmptyFrames(16.0, moreFrames)) {
+						vm.memoryManager.AllocateMoreFrames(moreFrames, this.getIdProg(), vm.memoryManager.getProgramsInMemory().get(vm.memoryManager.getIndexOfProgInMemory(getIdProg())).getProgram());
+						this.getFramesProg().addAll(moreFrames);
 					} else {
 						vm.cpu.ir.interruption=5;
 					}
 				}
-				this.contFrameAtual = (int)Math.floor((double) pc / tamanho_frame);
-				this.pc_ = (getFrames_prog().get(contFrameAtual) * tamanho_frame) + index_frames;
+				this.countCurrentFrame = (int)Math.floor((double) pc / frameSize);
 			}
+			this.pc_ = (getFramesProg().get(countCurrentFrame) * frameSize) + offset;
 		}
 
 
-		public int get_Endereco_Logico(int posicao){
-			int frame_aux =(int)Math.ceil((double) posicao/tamanho_frame);
-			int index_aux = posicao%tamanho_frame;
-			int frame_certo = frame_aux-1;
-			if (posicao < tamanho_frame){
-				return (getFrames_prog().get(frame_certo)*tamanho_frame) + index_aux;
+		public int getLogicAddress(int position){
+			int frame_aux =(int)Math.ceil((double) position/ frameSize);
+			int offset_aux = position% frameSize;
+			int rightFrame = frame_aux-1;
+			if (position < frameSize){
+				return (getFramesProg().get(rightFrame)* frameSize) + offset_aux;
 			}
-			if (frame_aux<= vm.cpu.pcb.getFrames_prog().size()){
-				return ((vm.cpu.pcb.getFrames_prog().get(frame_aux-1))*tamanho_frame)+index_aux;
+			if (frame_aux<= vm.cpu.pcb.getFramesProg().size()){
+				return ((vm.cpu.pcb.getFramesProg().get(frame_aux-1))* frameSize)+offset_aux;
 			}
 			else {
-				ArrayList<Integer> framesNovos = new ArrayList<>();
-				if(vm.controleMemoria.Existe_Frames_Livres((frame_aux- vm.cpu.pcb.getFrames_prog().size())*tamanho_frame,framesNovos)) {
-					vm.controleMemoria.Aloca_Mais_Frames(framesNovos, this.getIdProg(), vm.controleMemoria.getProgramas_em_memoria().get(vm.controleMemoria.getProgEmMemoria(this.getIdProg())).getPrograma());
-					return ((1+ vm.cpu.pcb.getFrames_prog().get(frame_aux-1))*tamanho_frame)+index_aux;
+				ArrayList<Integer> newFrames = new ArrayList<>();
+				if(vm.memoryManager.existsEmptyFrames((frame_aux- vm.cpu.pcb.getFramesProg().size())* frameSize,newFrames)) {
+					vm.memoryManager.AllocateMoreFrames(newFrames, this.getIdProg(), vm.memoryManager.getProgramsInMemory().get(vm.memoryManager.getIndexOfProgInMemory(this.getIdProg())).getProgram());
+					return ((1+ vm.cpu.pcb.getFramesProg().get(frame_aux-1))* frameSize)+offset_aux;
 				}
 				else{
 					vm.cpu.ir.interruption=5;
@@ -1290,20 +1270,20 @@ public class Sistema {
 			this.idProg = idProg;
 		}
 
-		public ArrayList<Integer> getFrames_prog() {
-			return frames_prog;
+		public ArrayList<Integer> getFramesProg() {
+			return framesProg;
 		}
 
-		public void setFrames_prog(ArrayList<Integer> frames_prog) {
-			this.frames_prog = frames_prog;
+		public void setFramesProg(ArrayList<Integer> framesProg) {
+			this.framesProg = framesProg;
 		}
 
-		public Progs getPrograma() {
-			return programa;
+		public Progs getProgram() {
+			return program;
 		}
 
-		public void setPrograma(Progs programa) {
-			this.programa = programa;
+		public void setProgram(Progs program) {
+			this.program = program;
 		}
 
 		//endregion
