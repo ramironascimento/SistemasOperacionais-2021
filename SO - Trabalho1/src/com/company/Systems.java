@@ -9,12 +9,14 @@ package com.company;
 
 import java.util.ArrayList;
 import java.util.Scanner;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 public class Systems {
 
+	public static Semaphore trapUsing = new Semaphore(1);
+	public static Semaphore shellNeedIO = new Semaphore(0);
+	public static Semaphore cpuIdle = new Semaphore(0);
 
 
 	// -------------------------------------------------------------------------------------------------------
@@ -28,14 +30,12 @@ public class Systems {
 		public int r1;        // indice do primeiro registrador da operacao (Rs ou Rd cfe opcode na tabela)
 		public int r2;        // indice do segundo registrador da operacao (Rc ou Rs cfe operacao)
 		public int p;        // parametro para instrucao (k ou A cfe operacao), ou o dado, se opcode = DADO
-		public int interruption; // controle de interrupcao da instrucao
 
 		public Word(Opcode _opc, int _r1, int _r2, int _p) {
 			opc = _opc;
 			r1 = _r1;
 			r2 = _r2;
 			p = _p;
-			interruption = 0;
 		}
 	}
 	// -------------------------------------------------------------------------------------------------------
@@ -73,22 +73,31 @@ public class Systems {
 		private Word[] m;           // CPU acessa MEMORIA, guarda referencia 'm' a ela. memoria nao muda. ee sempre a mesma.
 		private ProcessControlBlock pcb;
 		private Semaphore cpuSemaphore = new Semaphore(0);
+		private int interruptionFlag;
+		private int timeBetweenInstructions;
 
 		//construtor
 		public CPU(Word[] _m) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
 			m = _m;                // usa o atributo 'm' para acessar a memoria.
 			reg = new int[10];        // aloca o espaço dos registradores
+			this.start();
+			cpuIdle.release();
+			this.setName("cpuThread");
 		}
 
 		public void setContext(ProcessControlBlock program){
 			this.pcb = program;
 			this.reg = program.reg;
+			this.pcb.programState = ProgramState.RUNNING;
+		}
+
+		public void setInterruptionFlag(int interruptionFlag) {
+			this.interruptionFlag = interruptionFlag;
 		}
 
 		//TODO BACKLOG
 		@Override
 		public void run() {        // execution da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado
-
 			long sum;
 			long sub;
 
@@ -100,20 +109,21 @@ public class Systems {
 					e.printStackTrace();
 				}
 
-				pcb.programState = ProgramState.RUNNING;
+				//System.out.println("CPU THREAD : " +Thread.currentThread().getName());
 				int count_round_robin = 0;
+				this.setInterruptionFlag(0);
 
 
 				while (true) {         // ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
 
 					// FETCH
 					ir = m[pcb.pc_];        // busca posicao da memoria apontada por pc, guarda em ir
-
+					System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
 
 					// Contagem de Q para fazer o Escalonamento Round_Robin
 					count_round_robin++;
 					if (count_round_robin == vm.rr_q) {
-						ir.interruption = 6;
+						this.interruptionFlag = 6;
 					}
 
 					// EXECUTA INSTRUCAO NO ir
@@ -121,23 +131,13 @@ public class Systems {
 					sub = 0;
 					switch (ir.opc) { // para cada opcode, sua exetypocução
 						case TRAP:
-							switch (reg[8]) {
-								case 1: //in
-									reg[9] = Trap_IN();
-									break;
-								case 2: //out
-									Trap_OUT(m[pcb.getLogicAddress(reg[9])].p);
-									break;
-								default:
-									break;
-							}
-							pcb.nextPC();
+                            this.interruptionFlag = 7;
 							break;
 
 						case JMP: //PC ← k
 							//error treatment
 							if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							//execution
 							else {
@@ -148,7 +148,7 @@ public class Systems {
 						case JMPI: //PC ← R1
 							//error treatment
 							if (vm.validRegister(ir.r1) || m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							//execution
 							else {
@@ -161,7 +161,7 @@ public class Systems {
 								if (reg[ir.r2] > 0) {
 									//error treatment
 									if ((m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___)) {
-										ir.interruption = 2;
+										this.interruptionFlag = 2;
 									}
 									//execution
 									else {
@@ -171,7 +171,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -180,7 +180,7 @@ public class Systems {
 								if (reg[ir.r2] < 0) {
 									//error treatment
 									if (m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
-										ir.interruption = 2;
+										this.interruptionFlag = 2;
 									}
 									//execution
 									else {
@@ -190,7 +190,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 
 							break;
@@ -200,7 +200,7 @@ public class Systems {
 								if (reg[ir.r2] == 0) {
 									//error treatment
 									if (m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
-										ir.interruption = 2;
+										this.interruptionFlag = 2;
 									}
 									//execution
 									else {
@@ -210,14 +210,14 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
 						case JMPIM: // PC ← [A]
 							//error treatment
 							if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							//execution
 							else {
@@ -230,7 +230,7 @@ public class Systems {
 								if (reg[ir.r2] > 0) {
 									//error treatment
 									if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-										ir.interruption = 2;
+										this.interruptionFlag = 2;
 									}
 									//execution
 									else {
@@ -240,7 +240,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -249,7 +249,7 @@ public class Systems {
 								if (reg[ir.r2] < 0) {
 									//error treatment
 									if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-										ir.interruption = 2;
+										this.interruptionFlag = 2;
 									}
 									//execution
 									else {
@@ -259,7 +259,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -268,7 +268,7 @@ public class Systems {
 								if (reg[ir.r2] == 0) {
 									//error treatment
 									if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-										ir.interruption = 2;
+										this.interruptionFlag = 2;
 									}
 									//execution
 									else {
@@ -278,12 +278,12 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
 						case STOP: // Interruption ← 4
-							ir.interruption = 4;
+							this.interruptionFlag = 4;
 							break;
 
 						case ADDI: // R1 ← R1 + k
@@ -291,7 +291,7 @@ public class Systems {
 							if (vm.validRegister(ir.r1)) {
 								sum = reg[ir.r1] + ir.p;
 								if (sum > Integer.MAX_VALUE) {
-									ir.interruption = 1;
+									this.interruptionFlag = 1;
 								}
 								//execution
 								else {
@@ -299,7 +299,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -308,7 +308,7 @@ public class Systems {
 							if (vm.validRegister(ir.r1)) {
 								sub = reg[ir.r1] - ir.p;
 								if (sub < Integer.MIN_VALUE) {
-									ir.interruption = 1;
+									this.interruptionFlag = 1;
 								}
 								//execution
 								else {
@@ -316,7 +316,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -325,7 +325,7 @@ public class Systems {
 							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
 								sum = reg[ir.r1] + reg[ir.r2];
 								if (sum > Integer.MAX_VALUE) {
-									ir.interruption = 1;
+									this.interruptionFlag = 1;
 								}
 								//execution
 								else {
@@ -333,7 +333,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -342,7 +342,7 @@ public class Systems {
 							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
 								sub = reg[ir.r1] - reg[ir.r2];
 								if (sub < Integer.MIN_VALUE) {
-									ir.interruption = 1;
+									this.interruptionFlag = 1;
 								}
 								//execution
 								else {
@@ -350,7 +350,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -359,7 +359,7 @@ public class Systems {
 							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
 								sum = (long) reg[ir.r1] * reg[ir.r2];
 								if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) {
-									ir.interruption = 1;
+									this.interruptionFlag = 1;
 								}
 								//execution
 								else {
@@ -367,7 +367,7 @@ public class Systems {
 									pcb.nextPC();
 								}
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -376,7 +376,7 @@ public class Systems {
 								reg[ir.r1] = ir.p;
 								pcb.nextPC();
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -386,7 +386,7 @@ public class Systems {
 								reg[ir.r1] = m[pcb.getLogicAddress(ir.p)].p;
 								pcb.nextPC();
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -396,7 +396,7 @@ public class Systems {
 								m[pcb.getLogicAddress(ir.p)].p = reg[ir.r1];
 								pcb.nextPC();
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -405,7 +405,7 @@ public class Systems {
 								reg[ir.r1] = m[pcb.getLogicAddress(reg[ir.r2])].p;
 								pcb.nextPC();
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -415,7 +415,7 @@ public class Systems {
 								m[pcb.getLogicAddress(reg[ir.r1])].p = reg[ir.r2];
 								pcb.nextPC();
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 							break;
 
@@ -426,54 +426,93 @@ public class Systems {
 								reg[ir.r2] = t;
 								pcb.nextPC();
 							} else {
-								ir.interruption = 2;
+								this.interruptionFlag = 2;
 							}
 
 							break;
 
 						default:
-							ir.interruption = 3;
+							this.interruptionFlag = 3;
 							break;
 					}
 
-					if (ir.interruption != 0) {
-						if (ir.interruption == 1) //Overflow em uma operacao aritmetica
+					if (this.interruptionFlag != 0) {
+						if (this.interruptionFlag == 1) //Overflow em uma operacao aritmetica
 						{
 							overflowInterruption(ir);
 							vm.memoryManager.resetProgram(this.pcb);
 							break;
-						} else if (ir.interruption == 2) //acessou um endereço invalido de memoria (ArrayOutOfBound)
+						}
+						else if (this.interruptionFlag == 2) //acessou um endereço invalido de memoria (ArrayOutOfBound)
 						{
 							invalidAddressInterruption(ir);
 							vm.memoryManager.resetProgram(this.pcb);
 							break;
-						} else if (ir.interruption == 3) //Instrucao Invalida
+						}
+						else if (this.interruptionFlag == 3) //Instrucao Invalida
 						{
 							invalidOpcodeInterruption(ir);
 							vm.memoryManager.resetProgram(this.pcb);
 							break;
-						} else if (ir.interruption == 4) //opcode STOP em sí
+						}
+						else if (this.interruptionFlag == 4) //opcode STOP em sí
 						{
 							stopInterruption();
 							vm.memoryManager.resetProgram(this.pcb);
+							vm.schedulerManager.endExecution(this.pcb);
 							break;
-						} else if (ir.interruption == 5) //sem memoria disponivel
+						}
+						else if (this.interruptionFlag == 5) //sem memoria disponivel
 						{
 							noMemoryAvailableInterruption(ir);
 							break;
-						} else if (ir.interruption == 6) { //round robin  //FASE 6 TODO BACKLOG
-
-							this.pcb.reg = this.reg;
+						}
+						else if (this.interruptionFlag == 6) { //round robin  //FASE 6 TODO BACKLOG
 							vm.schedulerManager.endOfQueue(pcb);
-
 							System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
-
 							break;
 						}
+						else if(this.interruptionFlag == 7) { // requisição envio InOut
+							System.out.println("Programa [" + pcb.getIdProg() + " - " + pcb.getProgram() + "] foi enviado para o gerenciador de E/S");
+                            if (this.reg[8] == 1){
+                                if(this.reg[9] != 0) {
+                                    this.reg[9] = this.pcb.getLogicAddress(this.reg[9]); // getting the real memory position
+                                    vm.ioThread.addNewRequest(this.pcb);
+                                    pcb.nextPC();
+                                }
+                                else{
+									inOutOperationInterruption();
+                                }
+                            }
+                            else if (this.reg[8]==2){
+                                vm.ioThread.addNewRequest(this.pcb);
+                                pcb.nextPC();
+                            }
+                            else{
+                                invalidOpcodeInterruption(ir);
+                            }
+							break;
+						}
+						else if (this.interruptionFlag == 9){
+							vm.schedulerManager.addFirstInQueue(this.pcb);
+						}
+
 					}
-					System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
+					//System.out.println("CPU THREAD: " +Thread.currentThread().getName());
+					if(this.timeBetweenInstructions > 0){
+						try {
+							Thread.sleep(timeBetweenInstructions);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
 				}
+				cpuIdle.release();
 			}
+		}
+
+		public void setTimeBetweenInstructions(int time) {
+			this.timeBetweenInstructions = time;
 		}
 	}
 
@@ -485,41 +524,39 @@ public class Systems {
 
 	// ------------------- V M  - constituida de CPU e MEMORIA -----------------------------------------------
 	// -------------------------- atributos e construcao da VM -----------------------------------------------
-	public class VM extends Thread{
+	public class VM{
 
 		//atributos
-		public int tamMem;
+		public int memorySize;
 		public Word[] m;
 		public CPU cpu;
 		public MemoryManager memoryManager;
-		public int rr_q;
 		public SchedulerManager schedulerManager;
+		public InOutManager ioThread;
+
+		public int rr_q;
 
 		//construtor
 		public VM() {   // vm deve ser configurada com endereço de tratamento de interrupcoes
 			// memória
-			tamMem = 1024;
 			int tamFrame = 16;
-			memoryManager = new MemoryManager(tamMem, tamFrame);
-			m = new Word[tamMem]; // m ee a memoria
-			for (int i = 0; i < tamMem; i++) { m[i] = new Word(Opcode.___, -1, -1, -1); }
+			this.memorySize = 1024;
+			this.m = new Word[memorySize]; // m ee a memoria
+			for (int i = 0; i < memorySize; i++) { m[i] = new Word(Opcode.___, -1, -1, -1); }
 
-			rr_q = 5;
+			//START THREADS
+			this.memoryManager = new MemoryManager(memorySize, tamFrame);
 			this.schedulerManager = new SchedulerManager();
+			this.cpu = new CPU(m);
+			this.ioThread = new InOutManager();
 
-			// cpu
-			cpu = new CPU(m);
+			this.rr_q = 5;
 		}
 
 		public boolean validRegister(int reg_n) {
 			return (reg_n >= 0 && reg_n <= 9);
 		}
 
-		//TODO BACKLOG
-		@Override
-		public void run() {
-			super.run();
-		}
 	}
 
 	// ------------------- V M  - fim ------------------------------------------------------------------------
@@ -549,7 +586,7 @@ public class Systems {
 	}
 
 	public static void stopInterruption() {
-		System.out.println("---------------------------------- System end ");
+		System.out.println("---------------------------------- program finished ");
 	}
 
 	public static void noMemoryAvailableInterruption(Word w){
@@ -586,71 +623,16 @@ public class Systems {
 	}
 	//endregion
 
-	//region TRAP
-	public class InOutOperations extends Thread {
-
-		private final Semaphore inOutSemaphore = new Semaphore(1);
-		private ProcessControlBlock program;
-		private int operation;
-		private int info;
-
-
-		@Override
-		public void run() {
-			while(true){
-				try {
-					inOutSemaphore.acquire();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-
-
-
-				switch(operation){
-					case 1:
-						info = Trap_IN();
-						break;
-					case 2:
-						Trap_OUT();
-						break;
-					default:
-						inOutOperationInterruption();
-				}
-
-			}
-		}
-
-		private void callInOutOperation(ProcessControlBlock program){
-			this.program = program;
-			this.operation = this.program.reg[8];
-
-		}
-
-		public int returnInfo(){
-			return this.info;
-		}
-
-
-
-		public void Trap_OUT() {
-			System.out.println(info);
-		}
-
-		public int Trap_IN() {
-			Scanner teclado = new Scanner(System.in);
-			return teclado.nextInt();
-		}
-	}
-	//endregion
-
 
 	// -------------------------------------------------------------------------------------------------------
 	// -------------------  S I S T E M A --------------------------------------------------------------------
 
 	public VM vm;
 
+
 	public Systems(){   // a VM com tratamento de interrupções
 		vm = new VM();
+
 	}
 
 	// -------------------  S I S T E M A - fim --------------------------------------------------------------
@@ -659,28 +641,48 @@ public class Systems {
 
 	// -------------------------------------------------------------------------------------------------------
 	// ------------------- instancia e testa sistema
-	public static Scanner teclado = new Scanner(System.in);
+	public static final Scanner teclado = new Scanner(System.in);
 
-	public static void main(String[] args){
+	public static void main(String[] args) throws InterruptedException {
 		Systems s = new Systems();
+		s.test_fatorial();
+		s.vm.cpu.setTimeBetweenInstructions(3000);
+		s.test_fatorial();
 		menuOptions(s);
 	}
 	//region Main Menu
 
-	public static void menuOptions(Systems s){
+	public static void menuOptions(Systems s) throws InterruptedException {
 		int menuOptions = -1;
 		do{
-			System.out.println("--------- MENU DE OPCOES S.O. ---------");
+			StringBuilder sb = new StringBuilder();
+			sb.append("--------- MENU DE OPCOES S.O. ---------\n")
+					.append(" [1] - Rodar programa existente em memoria\n")
+					.append(" [2] - Adicionar programa a memoria\n")
+					.append(" [3] - Remover programa da memória\n")
+					.append(" [4] - Rodar todos programas em memória\n")
+					.append(" [5] - Dump de memória de um programa específico\n")
+					.append(" [6] - Nao preciso do menu agora\n")
+					.append(" [7] - Adicionar tempo(ms) entre as instrucoes\n")
+					.append(" [0] - Sair\n");
+			s.vm.ioThread.setShellRequest(true,sb.toString());
+			/*System.out.println("--------- MENU DE OPCOES S.O. ---------");
 			System.out.println(" [1] - Rodar programa existente em memoria");
 			System.out.println(" [2] - Adicionar programa a memoria");
 			System.out.println(" [3] - Remover programa da memória");
 			System.out.println(" [4] - Rodar todos programas em memória");
 			System.out.println(" [5] - Dump de memória de um programa específico");
-			System.out.println(" [0] - Sair");
-			menuOptions = teclado.nextInt();
+			System.out.println(" [6] - Esperar 5 segundos");
+			System.out.println(" [0] - Sair");*/
+
+			shellNeedIO.release();
+			menuOptions = s.vm.ioThread.getReturnShell();
 
 			switch(menuOptions){
 				case 0:
+					s.vm.cpu.join();
+					s.vm.schedulerManager.join();
+					s.vm.ioThread.join();
 					System.out.println("---------------------------------- Systems end ");
 					break;
 				case 1:
@@ -698,16 +700,29 @@ public class Systems {
 				case 5:
 					dumpProgMenu(s);
 					break;
+				case 6:
+					Thread.sleep(5000);
+					break;
+				case 7:
+					timeBetweenInstructions(s);
+					break;
 				default:
 					invalidMenuOptionInterruption();
 					break;
 			}
-
 		}while (menuOptions >0);
 	}
 
+	private static void timeBetweenInstructions(Systems s) throws InterruptedException {
+		int time;
+		s.vm.ioThread.setShellRequest(true, "Type in milliseconds the time between instructions: ");
+		shellNeedIO.release();
+		time = s.vm.ioThread.getReturnShell();
+		s.vm.cpu.setTimeBetweenInstructions(time);
+	}
 
-	public static void dumpProgMenu(Systems s) {
+
+	public static void dumpProgMenu(Systems s) throws InterruptedException {
 		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
 			Progs progs = Progs.___;
 			ArrayList<Integer> reservedFrames = new ArrayList<>();
@@ -717,9 +732,10 @@ public class Systems {
 				System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
 			}
 			System.out.println("-------");
-			System.out.println("Type the program's number:");
-			int idProg = teclado.nextInt();
-			teclado.nextLine();
+			int idProg;
+			s.vm.ioThread.setShellRequest(true, "Type the program's number:");
+			shellNeedIO.release();
+			idProg = s.vm.ioThread.getReturnShell();
 			System.out.println("-------");
 			if (s.vm.memoryManager.existProgram(idProg)){
 				Aux aux = new Aux();
@@ -736,7 +752,7 @@ public class Systems {
 		}
 	}
 
-	public static void runProgMenu(Systems s){
+	public static void runProgMenu(Systems s) throws InterruptedException {
 		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
 			Progs progs = Progs.___;
 			ArrayList<Integer> reservedFrames = new ArrayList<>();
@@ -745,22 +761,19 @@ public class Systems {
 				s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
 				System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
 			}
-			System.out.println("-------");
-			System.out.println("Type the program's number: ");
-			int idProg = teclado.nextInt();
-			teclado.nextLine();
-			System.out.println("-------");
+			int idProg;
+			s.vm.ioThread.setShellRequest(true,"-------\n" +
+																"Type the program's number: \n");
+			shellNeedIO.release();
+			idProg = s.vm.ioThread.getReturnShell();
 			if (s.vm.memoryManager.existProgram(idProg)){
-
-				//ArrayList<ProcessControlBlock> array_aux = new ArrayList<>(); //FASE 6 remove
-				//array_aux.add(s.vm.memoryManager.getPCB(idProg)); //FASE 6 remove
-				//s.vm.schedulerManager.run(array_aux); //FASE 6 remove
-
-				s.vm.schedulerManager.addToExecutionQueue(s.vm.memoryManager.getPCB(idProg)); //FASE 6 add
-				s.vm.schedulerManager.schedulerSemaphore.release();
-
-			    //add the PCB to first at scheduler's ready line
-                //and signal the CPU to run
+				if(s.vm.memoryManager.programsInMemory.get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).programState.equals(ProgramState.READY)) {
+					s.vm.schedulerManager.addToExecutionQueue(s.vm.memoryManager.getPCB(idProg)); //FASE 6 add
+					s.vm.schedulerManager.schedulerSemaphore.release();
+				}
+				else{
+					programIsAlreadyRunning(idProg);
+				}
 			}
 			else
 			{
@@ -773,17 +786,24 @@ public class Systems {
 		}
 	}
 
-	public static void loadProgMenu(Systems s) {
-		int opcao_menu = -1;
+	private static void programIsAlreadyRunning(int idProg) {
+		System.out.println("This program is already running in memory.");
+	}
+
+	public static void loadProgMenu(Systems s) throws InterruptedException {
+		int menuOptions = -1;
+		s.vm.ioThread.setShellRequest(true, "");
+		shellNeedIO.release();
 		System.out.println("--------- ESCOLHA O PROGRAMA ---------");
 		System.out.println(" [1] - ProgMin");
 		System.out.println(" [2] - Fibonacci");
 		System.out.println(" [3] - Fatorial");
 		System.out.println(" [4] - BubbleSort");
 		System.out.println(" [0] - Sair");
-		opcao_menu = teclado.nextInt();
 
-		switch (opcao_menu) {
+		menuOptions = s.vm.ioThread.getReturnShell();
+
+		switch (menuOptions) {
 			case 0:
 				System.out.println("---------------------------------- voltando ao menu principal ");
 				break;
@@ -806,7 +826,7 @@ public class Systems {
 		}
 	}
 
-	public static void removeProgMenu(Systems s){
+	public static void removeProgMenu(Systems s) throws InterruptedException {
 		Progs progs = Progs.___;
 		ArrayList<Integer> reservedFrames = new ArrayList<>();
 		System.out.println("------- Programs available in memory");
@@ -814,10 +834,11 @@ public class Systems {
 			s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
 			System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
 		}
-		System.out.println("-------");
-		System.out.println("Type the program's number: ");
-		int idProg = teclado.nextInt();
-		teclado.nextLine();
+		int idProg;
+		s.vm.ioThread.setShellRequest(true,"-------\n" +
+															"Type the program's number: \n");
+		shellNeedIO.release();
+		idProg = s.vm.ioThread.getReturnShell();
 		System.out.println("-------");
 		if (s.vm.memoryManager.existProgram(idProg)){
 			System.out.println("Program [ " + idProg+ " ] [ " + s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).getProgram() +  " ] was removed with success.");
@@ -878,7 +899,7 @@ public class Systems {
 
 	// -------------------------------------------  classes e funcoes auxiliares
 	
-	public static class Aux  extends Thread{
+	public static class Aux {
 		public void dump(Word w) {
 			System.out.print("[ ");
 			dumpOutput(w);
@@ -933,16 +954,168 @@ public class Systems {
 			}
 		}
 
-		//TODO BACKLOG
-		@Override
-		public void run() {
-			super.run();
-		}
+	}
+
+
+	// region Classes
+	public enum TypeIORequest{
+		SHELL,CONSOLE
 	}
 
 
 
-	// region Classes
+	public class InOutManager extends Thread {
+
+		//region Attributes
+		private Semaphore trapInReady = new Semaphore(0);
+		private ProcessControlBlock programBeingExecuted;
+		private ArrayList<ProcessControlBlock> consoleRequestQueue;
+		private boolean shellRequest;
+		private int returnShell = -1;
+		private String shellMessage = "";
+		//endregion
+
+
+		//region Constructor
+		public InOutManager(){
+			this.consoleRequestQueue = new ArrayList<>();
+			this.start();
+			this.setName("InOutThread");
+		}
+		//endregion
+
+
+		//region Methods
+		@Override
+		public void run() {
+			while(true){
+				if(!consoleRequestQueue.isEmpty() &&  hasNextBlocked()) {
+					//System.out.println("IN/OUT THREAD: " + Thread.currentThread().getName());
+					this.programBeingExecuted = this.nextBlocked();
+					switch (this.programBeingExecuted.reg[8]) {
+						case 1:
+							vm.m[programBeingExecuted.reg[9]].opc = Opcode.DATA;
+							try {
+								vm.m[programBeingExecuted.reg[9]].p = Trap_IN(TypeIORequest.CONSOLE);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+							this.programBeingExecuted.programState = ProgramState.READY;
+							vm.schedulerManager.addFirstInQueue(programBeingExecuted);
+							break;
+						case 2:
+							Trap_OUT();
+							this.programBeingExecuted.programState = ProgramState.READY;
+							break;
+						default:
+							inOutOperationInterruption();
+							break;
+					}
+				}
+				else if(shellRequest) {
+					try {
+						shellNeedIO.acquire();
+						this.returnShell = Trap_IN(TypeIORequest.SHELL);
+						trapInReady.release();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+				try {
+					sleep(100);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
+		private boolean hasNextBlocked() {
+			for (ProcessControlBlock pcb : consoleRequestQueue) {
+				if(pcb.programState.equals(ProgramState.BLOCKED)){
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private ProcessControlBlock nextBlocked() {
+			for (ProcessControlBlock pcb : consoleRequestQueue) {
+				if(pcb.programState.equals(ProgramState.BLOCKED)){
+					return consoleRequestQueue.get(consoleRequestQueue.indexOf(pcb));
+				}
+			}
+			return null;
+		}
+
+		public void Trap_OUT() {
+			System.out.println(vm.m[this.programBeingExecuted.reg[9]].p);
+		}
+
+		public int Trap_IN(TypeIORequest type) throws InterruptedException {
+			int return_;
+			if(type.equals(TypeIORequest.CONSOLE)) {
+				trapUsing.acquire();
+				System.out.println("~IO REQUEST -> "+vm.memoryManager.programsInMemory.get(
+						vm.memoryManager.getIndexOfProgInMemory(
+								this.programBeingExecuted.idProg))
+						+ " next input = ");
+				return_ = teclado.nextInt(); if(teclado.hasNextLine()) teclado.nextLine();
+				trapUsing.release();
+				System.out.println("typed to program");
+				return return_;
+			}
+			else if(type.equals(TypeIORequest.SHELL)){
+				trapUsing.acquire();
+				System.out.println(this.shellMessage);
+				System.out.println("~IO REQUEST -> Shell need input = ");
+				return_ = teclado.nextInt(); if(teclado.hasNextLine()) teclado.nextLine();
+				trapUsing.release();
+				shellRequest=false;
+				shellMessage = "";
+				return return_;
+			}
+			else{
+				inOutOperationInterruption();
+				return -1;
+			}
+		}
+
+		private void setContext(ProcessControlBlock program){
+			this.programBeingExecuted = program;
+		}
+
+		public void addNewRequest(ProcessControlBlock pcb) {
+			pcb.programState = ProgramState.BLOCKED;
+			this.consoleRequestQueue.add(pcb);
+
+		}
+
+		public ProcessControlBlock nextReady() {
+			for (ProcessControlBlock pcb : consoleRequestQueue) {
+				if(pcb.programState.equals(ProgramState.READY)){
+					return consoleRequestQueue.remove(consoleRequestQueue.indexOf(pcb));
+				}
+			}
+			return null;
+		}
+		//endregion
+
+		//region Getter Setter
+		public int getReturnShell() throws InterruptedException {
+			trapInReady.acquire();
+			return returnShell;
+		}
+
+		public boolean isShellRequest() {
+			return shellRequest;
+		}
+
+		public void setShellRequest(boolean shellRequest, String msg) {
+			this.shellRequest = shellRequest;
+			this.shellMessage = msg;
+		}
+		//endregion
+	}
 
 	public class SchedulerManager extends Thread {
 
@@ -954,6 +1127,8 @@ public class Systems {
 		//region construtor
 		public SchedulerManager(){
 			execQueue = new ArrayList<>();
+			this.start();
+			this.setName("SchedulerThread");
 		}
 		//endregion
 
@@ -962,36 +1137,43 @@ public class Systems {
 		//TODO BACKLOG
 		@Override
 		public void run() {
+			try {
+				schedulerSemaphore.acquire();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			ProcessControlBlock a;
 			while(true){
-				try {
-					schedulerSemaphore.acquire();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-
-				while(this.hasNextProgReady()) {
-					vm.cpu.setContext(this.getNextProgReady());
-					vm.cpu.cpuSemaphore.release();
+				if((a = this.hasNNextProgReady())!=null) {
+					if(cpuIdle.tryAcquire()) {
+						//System.out.println("SCHEDULER THREAD: " + Thread.currentThread().getName());
+						//a = this.getNextProgReady();
+						vm.cpu.setContext(a);
+						vm.cpu.cpuSemaphore.release();
+					}
 				}
 			}
 		}
 
-
 		private void endOfQueue(ProcessControlBlock program){
-			if(this.execQueue.contains(program)) { // FASE 6 if system is scaloning
-				ProcessControlBlock aux_ = this.execQueue.remove(execQueue.indexOf(program));
-				this.execQueue.add(aux_);
-				this.execQueue.get(this.execQueue.indexOf(aux_)).programState = ProgramState.READY;
-			}
-			else{ // FASE 6 if the program is new to the line
-				this.execQueue.add(program);
+			synchronized (execQueue) {
+				if (this.execQueue.contains(program)) { // FASE 6 if system is scaloning
+					ProcessControlBlock aux_ = this.execQueue.remove(execQueue.indexOf(program));
+					this.execQueue.add(aux_);
+					this.execQueue.get(this.execQueue.indexOf(aux_)).programState = ProgramState.READY;
+				} else { // FASE 6 if the program is new to the line
+					this.execQueue.add(program);
+					this.execQueue.get(this.execQueue.indexOf(program)).programState = ProgramState.READY;
+				}
 			}
 		}
 
 		public ProcessControlBlock getNextProgReady() {
-			for (ProcessControlBlock program : execQueue) {
-				if (program.programState.equals(ProgramState.READY)){
-					return program;
+			synchronized (execQueue) {
+				for (ProcessControlBlock program : execQueue) {
+					if (program.programState.equals(ProgramState.READY)) {
+						return program;
+					}
 				}
 			}
 			return null;
@@ -1015,12 +1197,25 @@ public class Systems {
 		}*/
 
 		private boolean hasNextProgReady() {
-			for (ProcessControlBlock pcb : execQueue) {
-			    if(pcb.programState.equals(ProgramState.READY)){
-			    	return true;
+			synchronized (execQueue) {
+				for (ProcessControlBlock pcb : execQueue) {
+					if (pcb.programState.equals(ProgramState.READY)) {
+						return true;
+					}
 				}
 			}
 			return false;
+		}
+
+		private ProcessControlBlock hasNNextProgReady() {
+			synchronized (execQueue) {
+				for (ProcessControlBlock pcb : execQueue) {
+					if (pcb.programState.equals(ProgramState.READY)) {
+						return pcb;
+					}
+				}
+			}
+			return null;
 		}
 
 		public void addToExecutionQueue(ProcessControlBlock pcb) { //FASE 6
@@ -1029,14 +1224,27 @@ public class Systems {
 			}
 		}
 
-		public void await() throws BrokenBarrierException, InterruptedException {
-			this.cyclicBarrier.await();
+		public void addFirstInQueue(ProcessControlBlock nextReady) {
+			synchronized (execQueue) {
+				if (this.execQueue.contains(nextReady)) { // FASE 6 if system is scaloning
+					ProcessControlBlock aux_ = this.execQueue.remove(execQueue.indexOf(nextReady));
+					this.execQueue.add(0, nextReady);
+				} else { // FASE 6 if the program is new to the line
+					this.execQueue.add(0, nextReady);
+				}
+				nextReady.programState = ProgramState.READY;
+			}
 		}
 
+		public void endExecution(ProcessControlBlock pcb) {
+			synchronized (execQueue){
+				execQueue.remove(pcb);
+			}
+		}
 		//endregion
 	}
 
-	public class MemoryManager extends Thread {
+	public class MemoryManager {
 
 		//region atributos
 		private Frame[] frames;
@@ -1056,11 +1264,6 @@ public class Systems {
 
 		// region Metodos
 
-		//TODO BACKLOG
-		@Override
-		public void run() {
-			super.run();
-		}
 
 		//region getters e setters
 
@@ -1214,10 +1417,12 @@ public class Systems {
 			prog.pc_ = 0;
 			prog.countCurrentFrame =0;
 			prog.offset =0;
+			int dummy;
 			for (Frame frame : this.getFrames()) {
 				if (frame.getIdProg() == program.getIdProg()){
 					for (int j = (frame.getIdFrame() * vm.memoryManager.getframeSize()); j < (((frame.getIdFrame() + 1) * vm.memoryManager.getframeSize()) - 1); j++) {
-					    vm.m[j].interruption = 0;
+					    //vm.m[j].interruption = 0; //todo backlog bug frame entrega passada
+						dummy=1;
 					}
 				}
 			}
@@ -1334,7 +1539,7 @@ public class Systems {
 						vm.memoryManager.allocateMoreFrames(moreFrames, this.getIdProg(), vm.memoryManager.getProgramsInMemory().get(vm.memoryManager.getIndexOfProgInMemory(getIdProg())).getProgram());
 						this.getFramesProg().addAll(moreFrames);
 					} else {
-						vm.cpu.ir.interruption=5;
+						vm.cpu.interruptionFlag=5;
 					}
 				}
 				this.countCurrentFrame = (int)Math.floor((double) pc / frameSize);
@@ -1360,7 +1565,7 @@ public class Systems {
 					return ((1+ vm.cpu.pcb.getFramesProg().get(logicFrame))* frameSize)+offset_aux;
 				}
 				else{
-					vm.cpu.ir.interruption=5;
+					vm.cpu.interruptionFlag=5;
 					return vm.cpu.pcb.pc_;
 				}
 			}
@@ -1439,28 +1644,31 @@ public class Systems {
 
 		public Word[] p3 = new Word[]{
 				new Word(Opcode.LDI, 8, -1, 1), // joga o valor 10 no Registrador1
+				new Word(Opcode.LDI, 9, -1, 50), // setta a posicao onde vai armazenar o valor inputado
             	new Word(Opcode.TRAP,-1,-1,-1),// chama trap para IN
-				new Word(Opcode.STD, 9, -1, 50), // coloca o valor do Registrado9 na posição 20 da memoria
+				//new Word(Opcode.STD, 9, -1, 50), // coloca o valor do Registrado9 na posição 20 da memoria
 				new Word(Opcode.LDD,1,-1,50), // ler da memoria e colocar no registrador
+
 				new Word(Opcode.LDD,2,-1,50), // ler da memoria e colocar no registrador
 				new Word(Opcode.LDI, 0,-1,18), // numero da linha que será pulado no JMP abaixo
 				new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
 				new Word(Opcode.SUBI,2,-1,1), //r2 = 9
-
 				// inicio loop
 				new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
+
 				new Word(Opcode.SUBI,2,-1,1), // subtrai pra fazer r1*r2
 				new Word(Opcode.MULT,1,2,-1), // multiplica
 				new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
 				new Word(Opcode.JMPIGM,-1,2,8),	// compara a zero para ver se precisa parar   x = 6
 				// fim loop
-
       			new Word(Opcode.STD,1,-1,50), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
+
 				new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
 				new Word(Opcode.LDI, 9, -1,50), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
 				new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
 				new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
 				new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
+
 				new Word(Opcode.STD,1,-1,50), // armazena no valor de r1 na posicao 20 da memoria
 				new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
 				new Word(Opcode.LDI, 9, -1,50), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
