@@ -10,13 +10,12 @@ package com.company;
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 public class Systems {
 
-	public static Semaphore trapUsing = new Semaphore(1);
-	public static Semaphore shellNeedIO = new Semaphore(0);
-	public static Semaphore cpuIdle = new Semaphore(0);
+
+	public static Semaphore shellNeedInOperation = new Semaphore(0); //FASE 6 E 7 // usado para controlar a sessao critica do trap_in
+	public static Semaphore cpuIdle = new Semaphore(0); //FASE 6 E 7  -> avisa o escalonador que a CPU ta livre
 
 
 	// -------------------------------------------------------------------------------------------------------
@@ -30,7 +29,7 @@ public class Systems {
 		public int r1;        // indice do primeiro registrador da operacao (Rs ou Rd cfe opcode na tabela)
 		public int r2;        // indice do segundo registrador da operacao (Rc ou Rs cfe operacao)
 		public int p;        // parametro para instrucao (k ou A cfe operacao), ou o dado, se opcode = DADO
-
+		//public int interruption //FASE 6 E 7 -> readaptacao do INTERRUPT pra variavel da CPU
 		public Word(Opcode _opc, int _r1, int _r2, int _p) {
 			opc = _opc;
 			r1 = _r1;
@@ -62,7 +61,7 @@ public class Systems {
 
 	public enum ProgramState {
 		READY,RUNNING,
-		BLOCKED
+		BLOCKED //FASE 6 E 7 -> adicao do estado blocked
 	}
 
 	//endregion
@@ -72,20 +71,20 @@ public class Systems {
 		private int[] reg;           // registradores da CPU
 		private Word[] m;           // CPU acessa MEMORIA, guarda referencia 'm' a ela. memoria nao muda. ee sempre a mesma.
 		private ProcessControlBlock pcb;
-		private Semaphore cpuSemaphore = new Semaphore(0);
-		private int interruptionFlag;
-		private int timeBetweenInstructions;
+		private Semaphore cpuSemaphore = new Semaphore(0); //FASE 6 E 7 -> controla o inicio da operacao da CPU
+		private int interruptionFlag; //FASE 6 E 7 -> indica interrupcao
+		private int timeBetweenInstructions; //FASE 6 E 7 -> funcionalidade de adicao de tempo entre as operacoes
 
 		//construtor
 		public CPU(Word[] _m) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
 			m = _m;                // usa o atributo 'm' para acessar a memoria.
 			reg = new int[10];        // aloca o espaço dos registradores
-			this.start();
+			this.start(); //FASE 6 E 7 -> start thread
 			cpuIdle.release();
 			this.setName("cpuThread");
 		}
 
-		public void setContext(ProcessControlBlock program){
+		public void setContext(ProcessControlBlock program){ //FASE 6 E 7 -> setta contexto pra entao liberar o semaforo p uso da cpu
 			this.pcb = program;
 			this.reg = program.reg;
 		}
@@ -103,14 +102,14 @@ public class Systems {
 			while(true) {
 
 				try {
-					this.cpuSemaphore.acquire(); //FASE 6
+					this.cpuSemaphore.acquire(); //FASE 6 e 7
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
 
 				//System.out.println("CPU THREAD : " +Thread.currentThread().getName());
 				int count_round_robin = 0;
-				this.setInterruptionFlag(0);
+				this.setInterruptionFlag(0); //FASE 6 E 7 -> zera no inicio da interrupcao
 				this.pcb.programState = ProgramState.RUNNING;
 
 				while (true) {         // ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
@@ -481,7 +480,7 @@ public class Systems {
 							System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
 							break;
 						}
-						else if(this.interruptionFlag == 7) { // requisição envio InOut
+						else if(this.interruptionFlag == 7) { //FASE 6 E 7 ->  requisição envio InOut
 							System.out.println("Programa [" + pcb.getIdProg() + " - " + pcb.getProgram() + "] foi enviado para o gerenciador de E/S");
                             if (this.reg[8] == 1){
                                 if(this.reg[9] != 0) {
@@ -506,7 +505,7 @@ public class Systems {
                             }
 							break;
 						}
-						else if (this.interruptionFlag == 9){
+						else if (this.interruptionFlag == 9){ //FASE 6 E 7 -> requisicao retorno do InOut
 							vm.schedulerManager.addFirstInQueue(this.pcb);
 						}
 
@@ -537,7 +536,7 @@ public class Systems {
 		public CPU cpu;
 		public MemoryManager memoryManager;
 		public SchedulerManager schedulerManager;
-		public InOutManager ioThread;
+		public InOutManager ioThread; //FASE 6 E 7 -> adicao controle de IO
 
 		public int rr_q;
 
@@ -626,7 +625,7 @@ public class Systems {
 
 	private static void inOutOperationInterruption(){
 		System.out.println("!Erro: Erro ao tentar acessar um dispositivo Externo.");
-	}
+	} //FASE 6 E 7
 	//endregion
 
 
@@ -651,9 +650,6 @@ public class Systems {
 
 	public static void main(String[] args) throws InterruptedException {
 		Systems s = new Systems();
-		s.test_fatorial();
-		//s.vm.cpu.setTimeBetweenInstructions(4000);
-		//s.test_fatorial();
 		menuOptions(s);
 	}
 	//region Main Menu
@@ -671,9 +667,9 @@ public class Systems {
 					.append(" [6] - Nao preciso do menu agora\n")
 					.append(" [7] - Adicionar tempo(ms) entre as instrucoes\n")
 					.append(" [0] - Sair\n");
-			s.vm.ioThread.setShellRequest(true,sb.toString());
 
-			shellNeedIO.release();
+			s.vm.ioThread.setShellRequest(true,sb.toString()); //FASE 6 E 7 -> pede um input atraves do Gerente de IO
+			shellNeedInOperation.release();
 			menuOptions = s.vm.ioThread.getReturnShell();
 
 			switch(menuOptions){
@@ -717,7 +713,7 @@ public class Systems {
 	private static void timeBetweenInstructions(Systems s) throws InterruptedException {
 		int time;
 		s.vm.ioThread.setShellRequest(true, "Type in milliseconds the time between instructions: ");
-		shellNeedIO.release();
+		shellNeedInOperation.release();
 		time = s.vm.ioThread.getReturnShell();
 		s.vm.cpu.setTimeBetweenInstructions(time);
 	}
@@ -736,7 +732,7 @@ public class Systems {
 			sb.append("-------\nDigite o numero do programa: ");
 			int idProg;
 			s.vm.ioThread.setShellRequest(true, sb.toString());
-			shellNeedIO.release();
+			shellNeedInOperation.release();
 			idProg = s.vm.ioThread.getReturnShell();
 			System.out.println("-------");
 			if (s.vm.memoryManager.existProgram(idProg)){
@@ -766,13 +762,13 @@ public class Systems {
 			}
 			sb.append("-------\nDigite o numero do programa: ");
 			int idProg;
-			s.vm.ioThread.setShellRequest(true,sb.toString());
-			shellNeedIO.release();
-			idProg = s.vm.ioThread.getReturnShell();
-			if (s.vm.memoryManager.existProgram(idProg)){
+			s.vm.ioThread.setShellRequest(true,sb.toString()); //FASE 6 E 7 -> adiciona na fila de E/S
+			shellNeedInOperation.release(); //FASE 6 E 7 -> libera uma permissao pro gerente olhar a fila
+			idProg = s.vm.ioThread.getReturnShell(); //FASE 6 E 7 -> ES vai colocar o resultado nessa variavel ReturnShell
+			if (s.vm.memoryManager.existProgram(idProg)){ //valida se a entrada é valida
 				if(s.vm.memoryManager.programsInMemory.get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).programState.equals(ProgramState.READY)) {
-					s.vm.schedulerManager.addToExecutionQueue(s.vm.memoryManager.getPCB(idProg)); //FASE 6 add
-					s.vm.schedulerManager.schedulerSemaphore.release();
+					s.vm.schedulerManager.addToExecutionQueue(s.vm.memoryManager.getPCB(idProg)); //FASE 6 add fila escalonador
+					s.vm.schedulerManager.schedulerSemaphore.release(); // libera pro escaloandor olhar a fila
 				}
 				else{
 					programIsAlreadyRunning(idProg);
@@ -796,7 +792,7 @@ public class Systems {
 	public static void loadProgMenu(Systems s) throws InterruptedException {
 		int menuOptions = -1;
 		s.vm.ioThread.setShellRequest(true, "");
-		shellNeedIO.release();
+		shellNeedInOperation.release();
 		System.out.println("--------- ESCOLHA O PROGRAMA ---------");
 		System.out.println(" [1] - ProgMin");
 		System.out.println(" [2] - Fibonacci");
@@ -841,11 +837,11 @@ public class Systems {
 		sb.append("-------\nDigite o numero do programa: ");
 		int idProg;
 		s.vm.ioThread.setShellRequest(true,sb.toString());
-		shellNeedIO.release();
+		shellNeedInOperation.release();
 		idProg = s.vm.ioThread.getReturnShell();
 		System.out.println("-------");
 		if (s.vm.memoryManager.existProgram(idProg)){
-			System.out.println("Program [ " + idProg+ " ] [ " + s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).getProgram() +  " ] was removed with success.");
+			System.out.println("Programa [ " + idProg+ " ] [ " + s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).getProgram() +  " ] foi removido com sucesso.");
 			s.vm.memoryManager.framesDeallocation(idProg);
 		}
 		else{
@@ -962,21 +958,21 @@ public class Systems {
 
 
 	// region Classes
-	public enum TypeIORequest{
+	public enum TypeIORequest{ //FASE 6 E 7 -> controle de quem esta acessando o gerente de E/S
 		SHELL,CONSOLE
 	}
 
 
 
-	public class InOutManager extends Thread {
+	public class InOutManager extends Thread { //FASE 6 E 7 -> classe e thread nova
 
 		//region Attributes
 		private Semaphore trapInReady = new Semaphore(0);
-		private ProcessControlBlock programBeingExecuted;
-		private ArrayList<ProcessControlBlock> consoleRequestQueue;
-		private boolean shellRequest;
-		private int returnShell = -1;
-		private String shellMessage = "";
+		private ProcessControlBlock programBeingExecuted; // programa da fila sendo executado
+		private ArrayList<ProcessControlBlock> consoleRequestQueue; //fila de pedidos do console
+		private boolean shellRequest; //controle de solicitacao do shell
+		private int returnShell = -1; // variavel de retorno do shell
+		private String shellMessage = ""; // mensagem que aparece para a solicitacao do input
 		//endregion
 
 
@@ -993,25 +989,27 @@ public class Systems {
 		@Override
 		public void run() {
 			while(true){
-				if(!consoleRequestQueue.isEmpty() &&  hasNextBlocked()) {
-					//System.out.println("IN/OUT THREAD: " + Thread.currentThread().getName());
+				if(!consoleRequestQueue.isEmpty() ) {
 					this.programBeingExecuted = this.nextBlocked();
 					switch (this.programBeingExecuted.reg[8]) {
 						case 1:
 							vm.m[programBeingExecuted.reg[9]].opc = Opcode.DATA;
 							try {
-								vm.m[programBeingExecuted.thisGetLogicAddress(programBeingExecuted.reg[9])
-										].p = Trap_IN(TypeIORequest.CONSOLE);
+								//DIRECT MEMORY ACCESS
+								vm.m[programBeingExecuted.thisGetLogicAddress(programBeingExecuted.reg[9])].p = Trap_IN(TypeIORequest.CONSOLE);
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}
 							this.programBeingExecuted.programState = ProgramState.READY;
 							vm.schedulerManager.addFirstInQueue(programBeingExecuted);
-							vm.cpu.setInterruptionFlag(9);
+							vm.cpu.setInterruptionFlag(9); // avisa a CPU que terminou
+							this.consoleRequestQueue.remove(programBeingExecuted); // remove da fila
 							break;
 						case 2:
-							Trap_OUT();
+							Trap_OUT(); //DMA dentro dele
 							this.programBeingExecuted.programState = ProgramState.READY;
+							vm.cpu.setInterruptionFlag(9); // avisa a CPU que terminou
+							this.consoleRequestQueue.remove(programBeingExecuted); // remove da fila
 							break;
 						default:
 							inOutOperationInterruption();
@@ -1020,7 +1018,7 @@ public class Systems {
 				}
 				else if(shellRequest) {
 					try {
-						shellNeedIO.acquire();
+						shellNeedInOperation.acquire();
 						this.returnShell = Trap_IN(TypeIORequest.SHELL);
 						trapInReady.release();
 					} catch (InterruptedException e) {
@@ -1033,15 +1031,6 @@ public class Systems {
 					e.printStackTrace();
 				}
 			}
-		}
-
-		private boolean hasNextBlocked() {
-			for (ProcessControlBlock pcb : consoleRequestQueue) {
-				if(pcb.programState.equals(ProgramState.BLOCKED)){
-					return true;
-				}
-			}
-			return false;
 		}
 
 		private ProcessControlBlock nextBlocked() {
@@ -1060,22 +1049,18 @@ public class Systems {
 		public int Trap_IN(TypeIORequest type) throws InterruptedException {
 			int return_;
 			if(type.equals(TypeIORequest.CONSOLE)) {
-				trapUsing.acquire();
 				System.out.println("~E/S Requisicao CONSOLE -> "+vm.memoryManager.programsInMemory.get(
 						vm.memoryManager.getIndexOfProgInMemory(
 								this.programBeingExecuted.idProg))
 						+ " next input = ");
 				return_ = teclado.nextInt(); if(teclado.hasNextLine()) teclado.nextLine();
-				trapUsing.release();
 				System.out.println("typed to program");
 				return return_;
 			}
 			else if(type.equals(TypeIORequest.SHELL)){
-				trapUsing.acquire();
 				System.out.println(this.shellMessage);
 				System.out.println("~E/S Requisicao SHELL  -> next input = ");
 				return_ = teclado.nextInt(); if(teclado.hasNextLine()) teclado.nextLine();
-				trapUsing.release();
 				shellRequest=false;
 				shellMessage = "";
 				return return_;
@@ -1086,24 +1071,12 @@ public class Systems {
 			}
 		}
 
-		private void setContext(ProcessControlBlock program){
-			this.programBeingExecuted = program;
-		}
-
 		public void addNewRequest(ProcessControlBlock pcb) {
 			pcb.programState = ProgramState.BLOCKED;
 			this.consoleRequestQueue.add(pcb);
 
 		}
 
-		public ProcessControlBlock nextReady() {
-			for (ProcessControlBlock pcb : consoleRequestQueue) {
-				if(pcb.programState.equals(ProgramState.READY)){
-					return consoleRequestQueue.remove(consoleRequestQueue.indexOf(pcb));
-				}
-			}
-			return null;
-		}
 		//endregion
 
 		//region Getter Setter
@@ -1144,7 +1117,7 @@ public class Systems {
 		@Override
 		public void run() {
 			try {
-				schedulerSemaphore.acquire();
+				schedulerSemaphore.acquire(); // TODO BACKLOG ver se da pra remover esse semaforo
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -1152,8 +1125,6 @@ public class Systems {
 			while(true){
 				if((a = this.hasNNextProgReady())!=null) {
 					if(cpuIdle.tryAcquire()) {
-						//System.out.println("SCHEDULER THREAD: " + Thread.currentThread().getName());
-						//a = this.getNextProgReady();
 						vm.cpu.setContext(a);
 						vm.cpu.cpuSemaphore.release();
 					}
@@ -1172,45 +1143,6 @@ public class Systems {
 					this.execQueue.get(this.execQueue.indexOf(program)).programState = ProgramState.READY;
 				}
 			}
-		}
-
-		public ProcessControlBlock getNextProgReady() {
-			synchronized (execQueue) {
-				for (ProcessControlBlock program : execQueue) {
-					if (program.programState.equals(ProgramState.READY)) {
-						return program;
-					}
-				}
-			}
-			return null;
-		}
-
-		/*
-		public void run(ArrayList<ProcessControlBlock> programas) {
-			this.fila_exec.addAll(programas); // adiciona programas na fila de exercucao
-			while(this.hasNextProgReady()){ // check se tem prog em ready
-				//TODO DOING change this line below to a setContext(this.getProximoProgReady()), then run()
-				// vm.cpu.run(this.getProximoProgReady()); //roda o proximo ready da fila
-
-			}
-			// qnd acaba, limpa fila e reseta os programas
-			this.fila_exec.clear();
-			for (ProcessControlBlock pcb : programas) {
-			    vm.memoryManager.resetProgram(pcb);
-			    pcb.programState = ProgramState.READY;
-			}
-			
-		}*/
-
-		private boolean hasNextProgReady() {
-			synchronized (execQueue) {
-				for (ProcessControlBlock pcb : execQueue) {
-					if (pcb.programState.equals(ProgramState.READY)) {
-						return true;
-					}
-				}
-			}
-			return false;
 		}
 
 		private ProcessControlBlock hasNNextProgReady() {
