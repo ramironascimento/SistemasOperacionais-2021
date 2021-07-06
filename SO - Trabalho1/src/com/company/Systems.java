@@ -88,7 +88,6 @@ public class Systems {
 		public void setContext(ProcessControlBlock program){
 			this.pcb = program;
 			this.reg = program.reg;
-			this.pcb.programState = ProgramState.RUNNING;
 		}
 
 		public void setInterruptionFlag(int interruptionFlag) {
@@ -112,13 +111,23 @@ public class Systems {
 				//System.out.println("CPU THREAD : " +Thread.currentThread().getName());
 				int count_round_robin = 0;
 				this.setInterruptionFlag(0);
-
+				this.pcb.programState = ProgramState.RUNNING;
 
 				while (true) {         // ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
 
 					// FETCH
-					ir = m[pcb.pc_];        // busca posicao da memoria apontada por pc, guarda em ir
+					ir = m[pcb.pc_];
 					System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
+
+
+					if(this.timeBetweenInstructions > 0){
+						try {
+							Thread.sleep(timeBetweenInstructions);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+
 
 					// Contagem de Q para fazer o Escalonamento Round_Robin
 					count_round_robin++;
@@ -476,7 +485,6 @@ public class Systems {
 							System.out.println("Programa [" + pcb.getIdProg() + " - " + pcb.getProgram() + "] foi enviado para o gerenciador de E/S");
                             if (this.reg[8] == 1){
                                 if(this.reg[9] != 0) {
-                                    this.reg[9] = this.pcb.getLogicAddress(this.reg[9]); // getting the real memory position
                                     vm.ioThread.addNewRequest(this.pcb);
                                     pcb.nextPC();
                                 }
@@ -485,8 +493,13 @@ public class Systems {
                                 }
                             }
                             else if (this.reg[8]==2){
-                                vm.ioThread.addNewRequest(this.pcb);
-                                pcb.nextPC();
+								if(this.reg[9] != 0) {
+									vm.ioThread.addNewRequest(this.pcb);
+									pcb.nextPC();
+								}
+								else{
+									inOutOperationInterruption();
+								}
                             }
                             else{
                                 invalidOpcodeInterruption(ir);
@@ -497,14 +510,6 @@ public class Systems {
 							vm.schedulerManager.addFirstInQueue(this.pcb);
 						}
 
-					}
-					//System.out.println("CPU THREAD: " +Thread.currentThread().getName());
-					if(this.timeBetweenInstructions > 0){
-						try {
-							Thread.sleep(timeBetweenInstructions);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
 					}
 				}
 				cpuIdle.release();
@@ -572,54 +577,55 @@ public class Systems {
 	// region Tratamento Interrupcao
 	public static void overflowInterruption(Word w) {
 		interruptionOutput(w);
-		System.out.println("There was an overflow in a arithmetic operation.");
+		System.out.println("!Erro: Houve Overflow na operação aritmética");
 	}
 
 	public static void invalidOpcodeInterruption(Word w) {
 		interruptionOutput(w);
-		System.out.println("Operation " + "[ " + w.opc + " ]" + " invalid.");
+		System.out.println("!Erro: Operação " + "[ " + w.opc + " ]" + " nao identificada.");
 	}
 
 	public static void invalidAddressInterruption(Word w) {
 		interruptionOutput(w);
-		System.out.println("The memory address or register tried to be accessed does not exists.");
+		System.out.println("!Erro: O endereço de memória ou registrador referenciado não existe.");
 	}
 
 	public static void stopInterruption() {
-		System.out.println("---------------------------------- program finished ");
+		System.out.println("---------------------------------- fim do programa ");
 	}
 
 	public static void noMemoryAvailableInterruption(Word w){
 		interruptionOutput(w);
-		System.out.println("There is no memory left. Please, remove a program from the memory.");
+		System.out.println("!Erro: Nao há memória livre. Favor, remova um programa da memória");
 	}
 
 	public static void noMemoryAvailableInterruption(){
-		System.out.println("**System Interruption: \n " +
-				           "There is no memory left. Please, remove a program from the memory.");
+		System.out.println("**Interrupção de Sistema: \n " +
+				"!Erro: Nao há memória livre. Favor, remova um programa da memória");
 	}
 
 	public static void programNotFoundInterruption() {
-		System.out.println("This program was not found in memory.");
+
+		System.out.println("!Erro: Este programa nao foi encontrado em memória.");
 	}
 
 	public static void emptyMemoryInterruption() {
-		System.out.println("Empty memory, please add a program to it with the option [ 2 ] from the main menu.");
+		System.out.println("!Erro: Memoria vazia, favor adicione um programa com a opção [ 2 ]");
 	}
 
 	public static void invalidMenuOptionInterruption(){
-		System.out.println(" Invalid option, try again.");
+		System.out.println("!Erro: Opcao invalida, tente novamente.");
 	}
 
 	private static void interruptionOutput(Word w) {
-		System.out.print("**System Interruption: \n " +
-				         "**Instruction Error: [ ");
+		System.out.print("**Interrupção de Sistema: \n " +
+						"**Erro na intrução: [ ");
 		Aux.dumpOutput(w);
 		System.out.print("  ] ");
 	}
 
 	private static void inOutOperationInterruption(){
-		System.out.println("Error trying to access External Devices.");
+		System.out.println("!Erro: Erro ao tentar acessar um dispositivo Externo.");
 	}
 	//endregion
 
@@ -646,8 +652,8 @@ public class Systems {
 	public static void main(String[] args) throws InterruptedException {
 		Systems s = new Systems();
 		s.test_fatorial();
-		s.vm.cpu.setTimeBetweenInstructions(3000);
-		s.test_fatorial();
+		//s.vm.cpu.setTimeBetweenInstructions(4000);
+		//s.test_fatorial();
 		menuOptions(s);
 	}
 	//region Main Menu
@@ -666,24 +672,19 @@ public class Systems {
 					.append(" [7] - Adicionar tempo(ms) entre as instrucoes\n")
 					.append(" [0] - Sair\n");
 			s.vm.ioThread.setShellRequest(true,sb.toString());
-			/*System.out.println("--------- MENU DE OPCOES S.O. ---------");
-			System.out.println(" [1] - Rodar programa existente em memoria");
-			System.out.println(" [2] - Adicionar programa a memoria");
-			System.out.println(" [3] - Remover programa da memória");
-			System.out.println(" [4] - Rodar todos programas em memória");
-			System.out.println(" [5] - Dump de memória de um programa específico");
-			System.out.println(" [6] - Esperar 5 segundos");
-			System.out.println(" [0] - Sair");*/
 
 			shellNeedIO.release();
 			menuOptions = s.vm.ioThread.getReturnShell();
 
 			switch(menuOptions){
 				case 0:
-					s.vm.cpu.join();
-					s.vm.schedulerManager.join();
-					s.vm.ioThread.join();
-					System.out.println("---------------------------------- Systems end ");
+					//s.vm.cpu.join();
+					//s.vm.schedulerManager.join();
+					//s.vm.ioThread.join();
+					s.vm.cpu.stop();
+					s.vm.schedulerManager.stop();
+					s.vm.ioThread.stop();
+					System.out.println("---------------------------------- fim do sistema ");
 					break;
 				case 1:
 					runProgMenu(s);
@@ -726,14 +727,15 @@ public class Systems {
 		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
 			Progs progs = Progs.___;
 			ArrayList<Integer> reservedFrames = new ArrayList<>();
-			System.out.println("------- Programs available in memory");
+			StringBuilder sb = new StringBuilder();
+			sb.append("------- Programas disponiveis em memória\n");
 			for (ProcessControlBlock p : s.vm.memoryManager.getProgramsInMemory()) {
 				s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
-				System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
+				sb.append(p.toString()).append(" Frames:").append(reservedFrames.toString()).append("\n");
 			}
-			System.out.println("-------");
+			sb.append("-------\nDigite o numero do programa: ");
 			int idProg;
-			s.vm.ioThread.setShellRequest(true, "Type the program's number:");
+			s.vm.ioThread.setShellRequest(true, sb.toString());
 			shellNeedIO.release();
 			idProg = s.vm.ioThread.getReturnShell();
 			System.out.println("-------");
@@ -756,14 +758,15 @@ public class Systems {
 		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
 			Progs progs = Progs.___;
 			ArrayList<Integer> reservedFrames = new ArrayList<>();
-			System.out.println("------- Programs available in memory");
+			StringBuilder sb = new StringBuilder();
+			sb.append("------- Programas disponiveis em memória\n");
 			for (ProcessControlBlock p : s.vm.memoryManager.getProgramsInMemory()) {
 				s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
-				System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
+				sb.append(p.toString()).append(" Frames:").append(reservedFrames.toString()).append("\n");
 			}
+			sb.append("-------\nDigite o numero do programa: ");
 			int idProg;
-			s.vm.ioThread.setShellRequest(true,"-------\n" +
-																"Type the program's number: \n");
+			s.vm.ioThread.setShellRequest(true,sb.toString());
 			shellNeedIO.release();
 			idProg = s.vm.ioThread.getReturnShell();
 			if (s.vm.memoryManager.existProgram(idProg)){
@@ -787,7 +790,7 @@ public class Systems {
 	}
 
 	private static void programIsAlreadyRunning(int idProg) {
-		System.out.println("This program is already running in memory.");
+		System.out.println("!Erro: este programa já está rodando em memória.");
 	}
 
 	public static void loadProgMenu(Systems s) throws InterruptedException {
@@ -829,14 +832,15 @@ public class Systems {
 	public static void removeProgMenu(Systems s) throws InterruptedException {
 		Progs progs = Progs.___;
 		ArrayList<Integer> reservedFrames = new ArrayList<>();
-		System.out.println("------- Programs available in memory");
+		StringBuilder sb = new StringBuilder();
+		sb.append("------- Programas disponiveis em memória\n");
 		for (ProcessControlBlock p : s.vm.memoryManager.getProgramsInMemory()) {
 			s.vm.memoryManager.getFramesProg(p.getIdProg(), reservedFrames);
-			System.out.println(p.toString() + " Frames:" + reservedFrames.toString());
+			sb.append(p.toString()).append(" Frames:").append(reservedFrames.toString()).append("\n");
 		}
+		sb.append("-------\nDigite o numero do programa: ");
 		int idProg;
-		s.vm.ioThread.setShellRequest(true,"-------\n" +
-															"Type the program's number: \n");
+		s.vm.ioThread.setShellRequest(true,sb.toString());
 		shellNeedIO.release();
 		idProg = s.vm.ioThread.getReturnShell();
 		System.out.println("-------");
@@ -996,12 +1000,14 @@ public class Systems {
 						case 1:
 							vm.m[programBeingExecuted.reg[9]].opc = Opcode.DATA;
 							try {
-								vm.m[programBeingExecuted.reg[9]].p = Trap_IN(TypeIORequest.CONSOLE);
+								vm.m[programBeingExecuted.thisGetLogicAddress(programBeingExecuted.reg[9])
+										].p = Trap_IN(TypeIORequest.CONSOLE);
 							} catch (InterruptedException e) {
 								e.printStackTrace();
 							}
 							this.programBeingExecuted.programState = ProgramState.READY;
 							vm.schedulerManager.addFirstInQueue(programBeingExecuted);
+							vm.cpu.setInterruptionFlag(9);
 							break;
 						case 2:
 							Trap_OUT();
@@ -1048,14 +1054,14 @@ public class Systems {
 		}
 
 		public void Trap_OUT() {
-			System.out.println(vm.m[this.programBeingExecuted.reg[9]].p);
+			System.out.println(vm.m[this.programBeingExecuted.thisGetLogicAddress(this.programBeingExecuted.reg[9])].p);
 		}
 
 		public int Trap_IN(TypeIORequest type) throws InterruptedException {
 			int return_;
 			if(type.equals(TypeIORequest.CONSOLE)) {
 				trapUsing.acquire();
-				System.out.println("~IO REQUEST -> "+vm.memoryManager.programsInMemory.get(
+				System.out.println("~E/S Requisicao CONSOLE -> "+vm.memoryManager.programsInMemory.get(
 						vm.memoryManager.getIndexOfProgInMemory(
 								this.programBeingExecuted.idProg))
 						+ " next input = ");
@@ -1067,7 +1073,7 @@ public class Systems {
 			else if(type.equals(TypeIORequest.SHELL)){
 				trapUsing.acquire();
 				System.out.println(this.shellMessage);
-				System.out.println("~IO REQUEST -> Shell need input = ");
+				System.out.println("~E/S Requisicao SHELL  -> next input = ");
 				return_ = teclado.nextInt(); if(teclado.hasNextLine()) teclado.nextLine();
 				trapUsing.release();
 				shellRequest=false;
@@ -1562,11 +1568,34 @@ public class Systems {
 				ArrayList<Integer> newFrames = new ArrayList<>();
 				if(vm.memoryManager.existsEmptyFrames((frame_aux - vm.cpu.pcb.getFramesProg().size())* frameSize,newFrames)) {
 					vm.memoryManager.allocateMoreFrames(newFrames, this.getIdProg(), vm.memoryManager.getProgramsInMemory().get(vm.memoryManager.getIndexOfProgInMemory(this.getIdProg())).getProgram());
-					return ((1+ vm.cpu.pcb.getFramesProg().get(logicFrame))* frameSize)+offset_aux;
+					return ((vm.cpu.pcb.getFramesProg().get(logicFrame))* frameSize)+offset_aux;
 				}
 				else{
 					vm.cpu.interruptionFlag=5;
 					return vm.cpu.pcb.pc_;
+				}
+			}
+		}
+
+		public int thisGetLogicAddress(int position){ // used outside the CPU
+			int frame_aux =(int)Math.ceil((double) position/ frameSize);
+			int offset_aux = position% frameSize;
+			int logicFrame = frame_aux-1;
+			if (position < frameSize){
+				return (this.getFramesProg().get(logicFrame)* frameSize) + offset_aux;
+			}
+			if (frame_aux<= this.getFramesProg().size()){
+				return ((this.getFramesProg().get(logicFrame))* frameSize)+offset_aux;
+			}
+			else {
+				ArrayList<Integer> newFrames = new ArrayList<>();
+				if(vm.memoryManager.existsEmptyFrames((frame_aux - this.getFramesProg().size())* this.frameSize,newFrames)) {
+					vm.memoryManager.allocateMoreFrames(newFrames, this.getIdProg(), this.getProgram());
+					return ((this.getFramesProg().get(logicFrame))* frameSize)+offset_aux;
+				}
+				else{
+					vm.cpu.interruptionFlag=5;
+					return this.pc_;
 				}
 			}
 		}
@@ -1650,7 +1679,7 @@ public class Systems {
 				new Word(Opcode.LDD,1,-1,50), // ler da memoria e colocar no registrador
 
 				new Word(Opcode.LDD,2,-1,50), // ler da memoria e colocar no registrador
-				new Word(Opcode.LDI, 0,-1,18), // numero da linha que será pulado no JMP abaixo
+				new Word(Opcode.LDI, 0,-1,19), // numero da linha que será pulado no JMP abaixo
 				new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
 				new Word(Opcode.SUBI,2,-1,1), //r2 = 9
 				// inicio loop
