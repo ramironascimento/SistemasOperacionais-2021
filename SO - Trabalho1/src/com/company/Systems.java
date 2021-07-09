@@ -13,565 +13,38 @@ import java.util.concurrent.Semaphore;
 
 public class Systems {
 
-
+	//region System Global Variables
 	public static Semaphore shellNeedInOperation = new Semaphore(0); //FASE 6 E 7 // usado para controlar a sessao critica do trap_in
 	public static Semaphore cpuIdle = new Semaphore(0); //FASE 6 E 7  -> avisa o escalonador que a CPU ta livre
+	public static final Scanner teclado = new Scanner(System.in);
+	public VM vm;
+	//endregion
+
+	//region main
+	public static void main(String[] args) throws InterruptedException {
+		Systems s = new Systems();
+		menuOptions(s);
+	}
+	//endregion
 
 
-	// -------------------------------------------------------------------------------------------------------
-	// --------------------- H A R D W A R E - definicoes de HW ----------------------------------------------
-
-	// -------------------------------------------------------------------------------------------------------
-	// --------------------- M E M O R I A -  definicoes de opcode e palavra de memoria ----------------------
-
-	public class Word {    // cada posicao da memoria tem uma instrucao (ou um dado)
-		public Opcode opc;    //
-		public int r1;        // indice do primeiro registrador da operacao (Rs ou Rd cfe opcode na tabela)
-		public int r2;        // indice do segundo registrador da operacao (Rc ou Rs cfe operacao)
-		public int p;        // parametro para instrucao (k ou A cfe operacao), ou o dado, se opcode = DADO
-		//public int interruption //FASE 6 E 7 -> readaptacao do INTERRUPT pra variavel da CPU
-		public Word(Opcode _opc, int _r1, int _r2, int _p) {
+	public static class Word {
+		public OpcodeEnum.Opcode opc;
+		public int r1;
+		public int r2;
+		public int p;
+		public Word(OpcodeEnum.Opcode _opc, int _r1, int _r2, int _p) {
 			opc = _opc;
 			r1 = _r1;
 			r2 = _r2;
 			p = _p;
 		}
 	}
-	// -------------------------------------------------------------------------------------------------------
-
-	// -------------------------------------------------------------------------------------------------------
-	// --------------------- C P U  -  definicoes da CPU -----------------------------------------------------
-	// -------------------------------------------------------------------------------------------------------
-
-	//region ENUMERATIONS
-	public enum Opcode {
-		DATA, ___,            // se memoria nesta posicao tem um dado, usa DATA, se nao usada ee NULO ___
-		JMP, JMPI, JMPIG, JMPIL, JMPIE, JMPIM, JMPIGM, JMPILM, JMPIEM, STOP,   // desvios e parada
-		ADDI, SUBI, ADD, SUB, MULT,          // matematicos
-		LDI, LDD, STD, LDX, STX, SWAP,        // movimentacao
-		TRAP                                 // added opcode
-
-	}
-
-	public enum Progs{
-		PROG_MINIMO, FIBBONACI10,
-		FATORIAL, BUBBLE_SORT,
-		___
-	}
 
 	public enum ProgramState {
-		READY,RUNNING,
-		BLOCKED //FASE 6 E 7 -> adicao do estado blocked
+		READY,RUNNING, BLOCKED
 	}
-
 	//endregion
-
-	public class CPU extends Thread{
-		private Word ir;              // instruction register,
-		private int[] reg;           // registradores da CPU
-		private Word[] m;           // CPU acessa MEMORIA, guarda referencia 'm' a ela. memoria nao muda. ee sempre a mesma.
-		private ProcessControlBlock pcb;
-		private Semaphore cpuContextSetted = new Semaphore(0); //FASE 6 E 7 -> controla o inicio da operacao da CPU
-		private int interruptionFlag; //FASE 6 E 7 -> indica interrupcao
-		private int timeBetweenInstructions; //FASE 6 E 7 -> funcionalidade de adicao de tempo entre as operacoes
-
-		//construtor
-		public CPU(Word[] _m) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
-			m = _m;                // usa o atributo 'm' para acessar a memoria.
-			reg = new int[10];        // aloca o espaço dos registradores
-			this.start(); //FASE 6 E 7 -> start thread
-			cpuIdle.release();
-			this.setName("cpuThread");
-		}
-
-		public void setContext(ProcessControlBlock program){ //FASE 6 E 7 -> setta contexto pra entao liberar o semaforo p uso da cpu
-			this.pcb = program;
-			this.reg = program.reg;
-		}
-
-		public void setInterruptionFlag(int interruptionFlag) {
-			this.interruptionFlag = interruptionFlag;
-		}
-
-		public void setTimeBetweenInstructions(int time) {
-			this.timeBetweenInstructions = time;
-		}
-
-		//TODO BACKLOG
-		@Override
-		public void run() {        // execution da CPU supoe que o contexto da CPU, vide acima, esta devidamente setado
-			long sum;
-			long sub;
-
-			while(true) {
-
-				try {
-					this.cpuContextSetted.acquire(); //FASE 6 e 7
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-
-				//System.out.println("CPU THREAD : " +Thread.currentThread().getName());
-				int count_round_robin = 0;
-				this.setInterruptionFlag(0); //FASE 6 E 7 -> zera no inicio da interrupcao
-				this.pcb.programState = ProgramState.RUNNING;
-
-				while (true) {         // ciclo de instrucoes. acaba cfe instrucao, veja cada caso.
-
-					// FETCH
-					ir = m[pcb.pc_];
-					System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
-
-
-					if(this.timeBetweenInstructions > 0){ //FASE 6 E 7
-						try {
-							Thread.sleep(timeBetweenInstructions);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-					}
-
-
-					// Contagem de Q para fazer o Escalonamento Round_Robin
-					count_round_robin++;
-					if (count_round_robin == vm.rr_q) {
-						this.interruptionFlag = 6;
-					}
-
-					// EXECUTA INSTRUCAO NO ir
-					sum = 0;
-					sub = 0;
-					switch (ir.opc) { // para cada opcode, sua exetypocução
-						case TRAP:
-                            this.interruptionFlag = 7;
-							break;
-
-						case JMP: //PC ← k
-							//error treatment
-							if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-								this.interruptionFlag = 2;
-							}
-							//execution
-							else {
-								pcb.jmpPc(ir.p);
-							}
-							break;
-
-						case JMPI: //PC ← R1
-							//error treatment
-							if (vm.validRegister(ir.r1) || m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
-								this.interruptionFlag = 2;
-							}
-							//execution
-							else {
-								pcb.jmpPc(reg[ir.r1]);
-							}
-							break;
-
-						case JMPIG: // If R2 > 0 Then PC ← R1 Else PC ← PC +1
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								if (reg[ir.r2] > 0) {
-									//error treatment
-									if ((m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___)) {
-										this.interruptionFlag = 2;
-									}
-									//execution
-									else {
-										pcb.jmpPc(reg[ir.r1]);
-									}
-								} else {
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case JMPIL: //if R2 < 0 then PC ← R1 Else PC ← PC +1
-							if (vm.validRegister(ir.r2)) {
-								if (reg[ir.r2] < 0) {
-									//error treatment
-									if (m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
-										this.interruptionFlag = 2;
-									}
-									//execution
-									else {
-										pcb.jmpPc(reg[ir.r1]);
-									}
-								} else {
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-
-							break;
-
-						case JMPIE: //if R2 == 0 then PC ← R1 Else PC ← PC +1
-							if (vm.validRegister(ir.r2)) {
-								if (reg[ir.r2] == 0) {
-									//error treatment
-									if (m[pcb.getLogicAddress(reg[ir.r1])].opc == Opcode.___) {
-										this.interruptionFlag = 2;
-									}
-									//execution
-									else {
-										pcb.jmpPc(reg[ir.r1]);
-									}
-								} else {
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case JMPIM: // PC ← [A]
-							//error treatment
-							if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-								this.interruptionFlag = 2;
-							}
-							//execution
-							else {
-								pcb.jmpPc(m[ir.p].p);
-							}
-							break;
-
-						case JMPIGM: // if R2 > 0 then PC ← [A] Else PC ← PC +1
-							if (vm.validRegister(ir.r2)) {
-								if (reg[ir.r2] > 0) {
-									//error treatment
-									if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-										this.interruptionFlag = 2;
-									}
-									//execution
-									else {
-										pcb.jmpPc(ir.p);
-									}
-								} else {
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case JMPILM: //if R2 < 0 then PC ← [A] Else PC ← PC +1
-							if (vm.validRegister(ir.r2)) {
-								if (reg[ir.r2] < 0) {
-									//error treatment
-									if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-										this.interruptionFlag = 2;
-									}
-									//execution
-									else {
-										pcb.jmpPc(ir.p);
-									}
-								} else {
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case JMPIEM: //if R2 == 0 then PC ← [A] Else PC ← PC +1
-							if (vm.validRegister(ir.r2)) {
-								if (reg[ir.r2] == 0) {
-									//error treatment
-									if (m[pcb.getLogicAddress(ir.p)].opc == Opcode.___) {
-										this.interruptionFlag = 2;
-									}
-									//execution
-									else {
-										pcb.jmpPc(ir.p);
-									}
-								} else {
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case STOP: // Interruption ← 4
-							this.interruptionFlag = 4;
-							break;
-
-						case ADDI: // R1 ← R1 + k
-							//tramento erro
-							if (vm.validRegister(ir.r1)) {
-								sum = reg[ir.r1] + ir.p;
-								if (sum > Integer.MAX_VALUE) {
-									this.interruptionFlag = 1;
-								}
-								//execution
-								else {
-									reg[ir.r1] = reg[ir.r1] + ir.p;
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case SUBI: // R1 ← R1 – k
-							//tratamento erro
-							if (vm.validRegister(ir.r1)) {
-								sub = reg[ir.r1] - ir.p;
-								if (sub < Integer.MIN_VALUE) {
-									this.interruptionFlag = 1;
-								}
-								//execution
-								else {
-									reg[ir.r1] = reg[ir.r1] - ir.p;
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case ADD: // R1 ← R1 + R2
-							//tratamento erro
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								sum = reg[ir.r1] + reg[ir.r2];
-								if (sum > Integer.MAX_VALUE) {
-									this.interruptionFlag = 1;
-								}
-								//execution
-								else {
-									reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case SUB: // R1 ← R1 - R2
-							//tratamento erro
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								sub = reg[ir.r1] - reg[ir.r2];
-								if (sub < Integer.MIN_VALUE) {
-									this.interruptionFlag = 1;
-								}
-								//execution
-								else {
-									reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case MULT: // R1 ← R1 * R2
-							//tratamento erro
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								sum = (long) reg[ir.r1] * reg[ir.r2];
-								if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) {
-									this.interruptionFlag = 1;
-								}
-								//execution
-								else {
-									reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
-									pcb.nextPC();
-								}
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case LDI: // R1 ← k
-							if (vm.validRegister(ir.r1)) {
-								reg[ir.r1] = ir.p;
-								pcb.nextPC();
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case LDD: // R1 ← [A]
-							//validacao
-							if (vm.validRegister(ir.r1)) {
-								reg[ir.r1] = m[pcb.getLogicAddress(ir.p)].p;
-								pcb.nextPC();
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case STD: // [A] ← R1
-							if (vm.validRegister(ir.r1)) {
-								m[pcb.getLogicAddress(ir.p)].opc = Opcode.DATA;
-								m[pcb.getLogicAddress(ir.p)].p = reg[ir.r1];
-								pcb.nextPC();
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case LDX: // R1 ← [R2]
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								reg[ir.r1] = m[pcb.getLogicAddress(reg[ir.r2])].p;
-								pcb.nextPC();
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case STX: // [R1] ← R2
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								m[pcb.getLogicAddress(reg[ir.r1])].opc = Opcode.DATA;
-								m[pcb.getLogicAddress(reg[ir.r1])].p = reg[ir.r2];
-								pcb.nextPC();
-							} else {
-								this.interruptionFlag = 2;
-							}
-							break;
-
-						case SWAP: //T ← Ra Ra ← Rb Rb ←T
-							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
-								int t = reg[ir.r1];
-								reg[ir.r1] = reg[ir.r2];
-								reg[ir.r2] = t;
-								pcb.nextPC();
-							} else {
-								this.interruptionFlag = 2;
-							}
-
-							break;
-
-						default:
-							this.interruptionFlag = 3;
-							break;
-					}
-
-					if (this.interruptionFlag != 0) {
-						if (this.interruptionFlag == 1) //Overflow em uma operacao aritmetica
-						{
-							overflowInterruption(ir);
-							vm.memoryManager.resetProgram(this.pcb);
-							break;
-						}
-						else if (this.interruptionFlag == 2) //acessou um endereço invalido de memoria (ArrayOutOfBound)
-						{
-							invalidAddressInterruption(ir);
-							vm.memoryManager.resetProgram(this.pcb);
-							break;
-						}
-						else if (this.interruptionFlag == 3) //Instrucao Invalida
-						{
-							invalidOpcodeInterruption(ir);
-							vm.memoryManager.resetProgram(this.pcb);
-							break;
-						}
-						else if (this.interruptionFlag == 4) //opcode STOP em sí
-						{
-							stopInterruption();
-							vm.memoryManager.resetProgram(this.pcb);
-							vm.schedulerManager.endExecution(this.pcb);
-							break;
-						}
-						else if (this.interruptionFlag == 5) //sem memoria disponivel
-						{
-							noMemoryAvailableInterruption(ir);
-							break;
-						}
-						else if (this.interruptionFlag == 6) { //round robin  //FASE 6 TODO BACKLOG
-							vm.schedulerManager.endOfQueue(pcb);
-							System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
-							break;
-						}
-						else if(this.interruptionFlag == 7) { //FASE 6 E 7 ->  requisição envio InOut
-							System.out.println("Programa [" + pcb.getIdProg() + " - " + pcb.getProgram() + "] foi enviado para o gerenciador de E/S");
-                            if (this.reg[8] == 1){
-                                if(this.reg[9] != 0) {
-                                    vm.ioThread.addNewRequest(this.pcb);
-                                    pcb.nextPC();
-                                }
-                                else{
-									inOutOperationInterruption();
-                                }
-                            }
-                            else if (this.reg[8]==2){
-								if(this.reg[9] != 0) {
-									vm.ioThread.addNewRequest(this.pcb);
-									pcb.nextPC();
-								}
-								else{
-									inOutOperationInterruption();
-								}
-                            }
-                            else{
-                                invalidOpcodeInterruption(ir);
-                            }
-							break;
-						}
-						else if (this.interruptionFlag == 9){ //FASE 6 E 7 -> requisicao retorno do InOut
-							vm.schedulerManager.addFirstInQueue(this.pcb);
-						}
-
-					}
-				}
-				cpuIdle.release();
-			}
-		}
-	}
-
-
-
-	// ------------------ C P U - fim ------------------------------------------------------------------------
-	// -------------------------------------------------------------------------------------------------------
-
-
-	// ------------------- V M  - constituida de CPU e MEMORIA -----------------------------------------------
-	// -------------------------- atributos e construcao da VM -----------------------------------------------
-	public class VM{
-
-		//atributos
-		public int memorySize;
-		public Word[] m;
-		public CPU cpu;
-		public MemoryManager memoryManager;
-		public SchedulerManager schedulerManager;
-		public InOutManager ioThread; //FASE 6 E 7 -> adicao controle de IO
-
-		public int rr_q;
-
-		//construtor
-		public VM() {   // vm deve ser configurada com endereço de tratamento de interrupcoes
-			// memória
-			int tamFrame = 16;
-			this.memorySize = 1024;
-			this.m = new Word[memorySize]; // m ee a memoria
-			for (int i = 0; i < memorySize; i++) { m[i] = new Word(Opcode.___, -1, -1, -1); }
-
-			//START THREADS
-			this.memoryManager = new MemoryManager(memorySize, tamFrame);
-			this.schedulerManager = new SchedulerManager();
-			this.cpu = new CPU(m);
-			this.ioThread = new InOutManager();
-
-			this.rr_q = 5;
-		}
-
-		public boolean validRegister(int reg_n) {
-			return (reg_n >= 0 && reg_n <= 9);
-		}
-
-	}
-
-	// ------------------- V M  - fim ------------------------------------------------------------------------
-	// -------------------------------------------------------------------------------------------------------
-
-	// --------------------H A R D W A R E - fim -------------------------------------------------------------
-	// -------------------------------------------------------------------------------------------------------
-
-	// -------------------------------------------------------------------------------------------------------
-	// -------------------------------------------------------------------------------------------------------
-	// ------------------- S O F T W A R E - inicio ----------------------------------------------------------
 
 	// region Tratamento Interrupcao
 	public static void overflowInterruption(Word w) {
@@ -619,7 +92,7 @@ public class Systems {
 	private static void interruptionOutput(Word w) {
 		System.out.print("**Interrupção de Sistema: \n " +
 						"**Erro na intrução: [ ");
-		Aux.dumpOutput(w);
+		Programs.Aux.dumpOutput(w);
 		System.out.print("  ] ");
 	}
 
@@ -628,30 +101,13 @@ public class Systems {
 	} //FASE 6 E 7
 	//endregion
 
-
-	// -------------------------------------------------------------------------------------------------------
-	// -------------------  S I S T E M A --------------------------------------------------------------------
-
-	public VM vm;
-
-
 	public Systems(){   // a VM com tratamento de interrupções
 		vm = new VM();
 
 	}
 
-	// -------------------  S I S T E M A - fim --------------------------------------------------------------
-	// -------------------------------------------------------------------------------------------------------
 
 
-	// -------------------------------------------------------------------------------------------------------
-	// ------------------- instancia e testa sistema
-	public static final Scanner teclado = new Scanner(System.in);
-
-	public static void main(String[] args) throws InterruptedException {
-		Systems s = new Systems();
-		menuOptions(s);
-	}
 	//region Main Menu
 
 	public static void menuOptions(Systems s) throws InterruptedException {
@@ -674,9 +130,6 @@ public class Systems {
 
 			switch(menuOptions){
 				case 0:
-					//s.vm.cpu.join();
-					//s.vm.schedulerManager.join();
-					//s.vm.ioThread.join();
 					s.vm.cpu.stop();
 					s.vm.schedulerManager.stop();
 					s.vm.ioThread.stop();
@@ -698,7 +151,7 @@ public class Systems {
 					dumpProgMenu(s);
 					break;
 				case 6:
-					Thread.sleep(5000);
+					Thread.sleep(10000);
 					break;
 				case 7:
 					timeBetweenInstructions(s);
@@ -720,7 +173,7 @@ public class Systems {
 
 	public static void dumpProgMenu(Systems s) throws InterruptedException {
 		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
-			Progs progs = Progs.___;
+			Programs.Progs progs = Programs.Progs.___;
 			ArrayList<Integer> reservedFrames = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
 			sb.append("------- Programas disponiveis em memória\n");
@@ -735,7 +188,7 @@ public class Systems {
 			idProg = s.vm.ioThread.getReturnShell();
 			System.out.println("-------");
 			if (s.vm.memoryManager.existProgram(idProg)){
-				Aux aux = new Aux();
+				Programs.Aux aux = new Programs.Aux();
 				aux.dump(s.vm,idProg);
 			}
 			else
@@ -751,7 +204,7 @@ public class Systems {
 
 	public static void runProgMenu(Systems s) throws InterruptedException {
 		if (!s.vm.memoryManager.getProgramsInMemory().isEmpty()){
-			Progs progs = Progs.___;
+			Programs.Progs progs = Programs.Progs.___;
 			ArrayList<Integer> reservedFrames = new ArrayList<>();
 			StringBuilder sb = new StringBuilder();
 			sb.append("------- Programas disponiveis em memória\n");
@@ -825,7 +278,7 @@ public class Systems {
 	}
 
 	public static void removeProgMenu(Systems s) throws InterruptedException {
-		Progs progs = Progs.___;
+		Programs.Progs progs = Programs.Progs.___;
 		ArrayList<Integer> reservedFrames = new ArrayList<>();
 		StringBuilder sb = new StringBuilder();
 		sb.append("------- Programas disponiveis em memória\n");
@@ -841,6 +294,9 @@ public class Systems {
 		System.out.println("-------");
 		if (s.vm.memoryManager.existProgram(idProg)){
 			System.out.println("Programa [ " + idProg+ " ] [ " + s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)).getProgram() +  " ] foi removido com sucesso.");
+			s.vm.cpu.setInterruptionFlag(4);
+			s.vm.schedulerManager.endExecution(s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)));
+			s.vm.ioThread.consoleRequestQueue.remove(s.vm.memoryManager.getProgramsInMemory().get(s.vm.memoryManager.getIndexOfProgInMemory(idProg)));
 			s.vm.memoryManager.framesDeallocation(idProg);
 		}
 		else{
@@ -860,106 +316,508 @@ public class Systems {
 	}
 	//endregion
 
-
-	// -------------------------------------------------------------------------------------------------------
-	// --------------- TUDO ABAIXO DE MAIN É AUXILIAR PARA FUNCIONAMENTO DO SISTEMA - nao faz parte
-
-	// -------------------------------------------- teste do sistema ,  veja classe de programas
-
-	//region testes
-	public void test_prog_minimo(){
-		Aux aux = new Aux();
-		Word[] p = new Programas().progMinimo;
-		aux.memoryLoad(p,Progs.PROG_MINIMO, vm);
-	}
-
-	public void test_fibonacci10(){
-		Aux aux = new Aux();
-		Word[] p = new Programas().fibonacci10;
-		aux.memoryLoad(p,Progs.FIBBONACI10, vm);
-	}
-
-	// teste p3
-
-	public void test_fatorial(){
-		Aux aux = new Aux();
-		Word[] p = new Programas().p3;
-		aux.memoryLoad(p,Progs.FATORIAL, vm);
-	}
-
-	public void test_bubble_sort(){
-		Aux aux = new Aux();
-		Word[] p = new Programas().p3;
-		aux.memoryLoad(p,Progs.BUBBLE_SORT, vm);
-	}
-	//endregion
-
-	// -------------------------------------------  classes e funcoes auxiliares
-	
-	public static class Aux {
-		public void dump(Word w) {
-			System.out.print("[ ");
-			dumpOutput(w);
-			System.out.println("  ] ");
-		}
-
-		private static void dumpOutput(Word w) {
-			System.out.print(w.opc);
-			System.out.print(", ");
-			System.out.print(w.r1);
-			System.out.print(", ");
-			System.out.print(w.r2);
-			System.out.print(", ");
-			System.out.print(w.p);
-		}
-
-		public void dump(Word[] m, int ini, int fim) {
-			for (int i = ini; i <= fim; i++) {
-				System.out.print(i);
-				System.out.print(":  ");
-				dump(m[i]);
-			}
-		}
-
-		public void dump(VM vm, int idProg) {
-			ArrayList<Integer> frames_reservados = new ArrayList<>();
-			if(vm.memoryManager.getFramesProg(idProg,frames_reservados)){
-				for (int i = 0; i < frames_reservados.size(); i++) {
-					System.out.println("---- Frame [" + frames_reservados.get(i) + " ]");
-					dump(vm.m, (frames_reservados.get(i) * vm.memoryManager.getframeSize()), (((frames_reservados.get(i) + 1) * vm.memoryManager.getframeSize()) - 1));
-				}
-			}
-			else
-			{
-				programNotFoundInterruption();
-			}
-		}
-
-		public void memoryLoad(Word[] p, Progs nomePrograma, VM vm) {
-			ArrayList<Integer> frames_reservados = new ArrayList<>();
-			if (vm.memoryManager.existsEmptyFrames(p.length, frames_reservados)) {
-				vm.memoryManager.framesAllocation(frames_reservados, p, nomePrograma);
-				System.out.println("Programa carregado com sucesso.");
-				System.out.print("Frames Reservados ");
-				for (int i : frames_reservados) {
-					System.out.print("- [ " + i + " ]");
-				}
-				System.out.println();
-			}
-			else{
-				noMemoryAvailableInterruption();
-			}
-		}
-
-	}
-
-
-	// region Classes
 	public enum TypeIORequest{ //FASE 6 E 7 -> controle de quem esta acessando o gerente de E/S
 		SHELL,CONSOLE
 	}
 
+	public class CPU extends Thread{
+		//region Attributes
+		private Word ir;
+		private int[] reg;
+		private Word[] m;
+		private ProcessControlBlock pcb;
+		private Semaphore cpuContextSetted = new Semaphore(0); //FASE 6 E 7 -> controla o inicio da operacao da CPU
+		private int interruptionFlag; //FASE 6 E 7 -> indica interrupcao
+		private int timeBetweenInstructions; //FASE 6 E 7 -> funcionalidade de adicao de tempo entre as operacoes
+		//endregion
 
+		//region Constructor
+		public CPU(Word[] _m) {     // ref a MEMORIA e interrupt handler passada na criacao da CPU
+			m = _m;                // usa o atributo 'm' para acessar a memoria.
+			reg = new int[10];        // aloca o espaço dos registradores
+			this.start(); //FASE 6 E 7 -> start thread
+			cpuIdle.release();
+			this.setName("cpuThread");
+		}
+		//endregion
+
+		//region Methods
+		public void setContext(ProcessControlBlock program){ //FASE 6 E 7 -> setta contexto pra entao liberar o semaforo p uso da cpu
+			this.pcb = program;
+			this.reg = program.reg;
+		}
+
+		public void setInterruptionFlag(int interruptionFlag) {
+			this.interruptionFlag = interruptionFlag;
+		}
+
+		public void setTimeBetweenInstructions(int time) {
+			this.timeBetweenInstructions = time;
+		}
+
+		@Override
+		public void run() {
+			long sum;
+			long sub;
+
+			while(true) {
+
+				try {
+					this.cpuContextSetted.acquire(); //FASE 6 e 7
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+
+				int count_round_robin = 0;
+				this.setInterruptionFlag(0); //FASE 6 E 7 -> zera no inicio da interrupcao
+				this.pcb.programState = ProgramState.RUNNING;
+
+				while (true) {
+
+					// FETCH
+					ir = m[pcb.pc_];
+
+					//terminar feedback
+					System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
+
+					//menu option 7: Time Between Instruction
+					if(this.timeBetweenInstructions > 0){ //FASE 6 E 7
+						try {
+							Thread.sleep(timeBetweenInstructions);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+
+					//Scheduler Round Robin -> 5 instruction per program
+					count_round_robin++;
+					if (count_round_robin == vm.rr_q) {
+						setInterruptionFlag(6);
+					}
+
+					sum = 0;
+					sub = 0;
+
+
+					switch (ir.opc) {
+						case TRAP:
+							setInterruptionFlag(7);
+							break;
+
+						case JMP: //PC ← k
+							//error treatment
+							if (m[pcb.getLogicAddress(ir.p)].opc == OpcodeEnum.Opcode.___) {
+								setInterruptionFlag(2);
+							}
+							//execution
+							else {
+								pcb.jmpPc(ir.p);
+							}
+							break;
+
+						case JMPI: //PC ← R1
+							//error treatment
+							if (vm.validRegister(ir.r1) || m[pcb.getLogicAddress(reg[ir.r1])].opc == OpcodeEnum.Opcode.___) {
+								setInterruptionFlag(2);
+							}
+							//execution
+							else {
+								pcb.jmpPc(reg[ir.r1]);
+							}
+							break;
+
+						case JMPIG: // If R2 > 0 Then PC ← R1 Else PC ← PC +1
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								if (reg[ir.r2] > 0) {
+									//error treatment
+									if ((m[pcb.getLogicAddress(reg[ir.r1])].opc == OpcodeEnum.Opcode.___)) {
+										setInterruptionFlag(2);
+									}
+									//execution
+									else {
+										pcb.jmpPc(reg[ir.r1]);
+									}
+								} else {
+									pcb.nextPC();
+								}
+							} else {
+								this.interruptionFlag = 2;
+							}
+							break;
+
+						case JMPIL: //if R2 < 0 then PC ← R1 Else PC ← PC +1
+							if (vm.validRegister(ir.r2)) {
+								if (reg[ir.r2] < 0) {
+									//error treatment
+									if (m[pcb.getLogicAddress(reg[ir.r1])].opc == OpcodeEnum.Opcode.___) {
+										setInterruptionFlag(2);
+									}
+									//execution
+									else {
+										pcb.jmpPc(reg[ir.r1]);
+									}
+								} else {
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+
+							break;
+
+						case JMPIE: //if R2 == 0 then PC ← R1 Else PC ← PC +1
+							if (vm.validRegister(ir.r2)) {
+								if (reg[ir.r2] == 0) {
+									//error treatment
+									if (m[pcb.getLogicAddress(reg[ir.r1])].opc == OpcodeEnum.Opcode.___) {
+										setInterruptionFlag(2);
+									}
+									//execution
+									else {
+										pcb.jmpPc(reg[ir.r1]);
+									}
+								} else {
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case JMPIM: // PC ← [A]
+							//error treatment
+							if (m[pcb.getLogicAddress(ir.p)].opc == OpcodeEnum.Opcode.___) {
+								setInterruptionFlag(2);
+							}
+							//execution
+							else {
+								pcb.jmpPc(m[ir.p].p);
+							}
+							break;
+
+						case JMPIGM: // if R2 > 0 then PC ← [A] Else PC ← PC +1
+							if (vm.validRegister(ir.r2)) {
+								if (reg[ir.r2] > 0) {
+									//error treatment
+									if (m[pcb.getLogicAddress(ir.p)].opc == OpcodeEnum.Opcode.___) {
+										setInterruptionFlag(2);
+									}
+									//execution
+									else {
+										pcb.jmpPc(ir.p);
+									}
+								} else {
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case JMPILM: //if R2 < 0 then PC ← [A] Else PC ← PC +1
+							if (vm.validRegister(ir.r2)) {
+								if (reg[ir.r2] < 0) {
+									//error treatment
+									if (m[pcb.getLogicAddress(ir.p)].opc == OpcodeEnum.Opcode.___) {
+										setInterruptionFlag(2);
+									}
+									//execution
+									else {
+										pcb.jmpPc(ir.p);
+									}
+								} else {
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case JMPIEM: //if R2 == 0 then PC ← [A] Else PC ← PC +1
+							if (vm.validRegister(ir.r2)) {
+								if (reg[ir.r2] == 0) {
+									//error treatment
+									if (m[pcb.getLogicAddress(ir.p)].opc == OpcodeEnum.Opcode.___) {
+										setInterruptionFlag(2);
+									}
+									//execution
+									else {
+										pcb.jmpPc(ir.p);
+									}
+								} else {
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case STOP: // Interruption ← 4
+							setInterruptionFlag(4);
+							break;
+
+						case ADDI: // R1 ← R1 + k
+							//tramento erro
+							if (vm.validRegister(ir.r1)) {
+								sum = reg[ir.r1] + ir.p;
+								if (sum > Integer.MAX_VALUE) {
+									setInterruptionFlag(1);
+								}
+								//execution
+								else {
+									reg[ir.r1] = reg[ir.r1] + ir.p;
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case SUBI: // R1 ← R1 – k
+							//tratamento erro
+							if (vm.validRegister(ir.r1)) {
+								sub = reg[ir.r1] - ir.p;
+								if (sub < Integer.MIN_VALUE) {
+									setInterruptionFlag(1);
+								}
+								//execution
+								else {
+									reg[ir.r1] = reg[ir.r1] - ir.p;
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case ADD: // R1 ← R1 + R2
+							//tratamento erro
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								sum = reg[ir.r1] + reg[ir.r2];
+								if (sum > Integer.MAX_VALUE) {
+									setInterruptionFlag(1);
+								}
+								//execution
+								else {
+									reg[ir.r1] = reg[ir.r1] + reg[ir.r2];
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case SUB: // R1 ← R1 - R2
+							//tratamento erro
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								sub = reg[ir.r1] - reg[ir.r2];
+								if (sub < Integer.MIN_VALUE) {
+									setInterruptionFlag(1);
+								}
+								//execution
+								else {
+									reg[ir.r1] = reg[ir.r1] - reg[ir.r2];
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case MULT: // R1 ← R1 * R2
+							//tratamento erro
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								sum = (long) reg[ir.r1] * reg[ir.r2];
+								if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) {
+									setInterruptionFlag(1);
+								}
+								//execution
+								else {
+									reg[ir.r1] = reg[ir.r1] * reg[ir.r2];
+									pcb.nextPC();
+								}
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case LDI: // R1 ← k
+							if (vm.validRegister(ir.r1)) {
+								reg[ir.r1] = ir.p;
+								pcb.nextPC();
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case LDD: // R1 ← [A]
+							//validacao
+							if (vm.validRegister(ir.r1)) {
+								reg[ir.r1] = m[pcb.getLogicAddress(ir.p)].p;
+								pcb.nextPC();
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case STD: // [A] ← R1
+							if (vm.validRegister(ir.r1)) {
+								m[pcb.getLogicAddress(ir.p)].opc = OpcodeEnum.Opcode.DATA;
+								m[pcb.getLogicAddress(ir.p)].p = reg[ir.r1];
+								pcb.nextPC();
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case LDX: // R1 ← [R2]
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								reg[ir.r1] = m[pcb.getLogicAddress(reg[ir.r2])].p;
+								pcb.nextPC();
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case STX: // [R1] ← R2
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								m[pcb.getLogicAddress(reg[ir.r1])].opc = OpcodeEnum.Opcode.DATA;
+								m[pcb.getLogicAddress(reg[ir.r1])].p = reg[ir.r2];
+								pcb.nextPC();
+							} else {
+								setInterruptionFlag(2);
+							}
+							break;
+
+						case SWAP: //T ← Ra Ra ← Rb Rb ←T
+							if (vm.validRegister(ir.r1) && vm.validRegister(ir.r2)) {
+								int t = reg[ir.r1];
+								reg[ir.r1] = reg[ir.r2];
+								reg[ir.r2] = t;
+								pcb.nextPC();
+							} else {
+								setInterruptionFlag(2);
+							}
+
+							break;
+
+						default:
+							setInterruptionFlag(3);
+							break;
+					}
+
+					if (this.interruptionFlag != 0) {
+						if (this.interruptionFlag == 1) //Overflow em uma operacao aritmetica
+						{
+							overflowInterruption(ir);
+							vm.memoryManager.resetProgram(this.pcb);
+							break;
+						}
+						else if (this.interruptionFlag == 2) //acessou um endereço invalido de memoria (ArrayOutOfBound)
+						{
+							invalidAddressInterruption(ir);
+							vm.memoryManager.resetProgram(this.pcb);
+							break;
+						}
+						else if (this.interruptionFlag == 3) //Instrucao Invalida
+						{
+							invalidOpcodeInterruption(ir);
+							vm.memoryManager.resetProgram(this.pcb);
+							break;
+						}
+						else if (this.interruptionFlag == 4) //opcode STOP em sí
+						{
+							stopInterruption();
+							vm.memoryManager.resetProgram(this.pcb);
+							vm.schedulerManager.endExecution(this.pcb);
+							break;
+						}
+						else if (this.interruptionFlag == 5) //sem memoria disponivel
+						{
+							noMemoryAvailableInterruption(ir);
+							break;
+						}
+						else if (this.interruptionFlag == 6) { //round robin
+							vm.schedulerManager.endOfQueue(pcb);
+							System.out.println(pcb.programState + " -> " + "Programa[" + pcb.getIdProg() + " - " + pcb.getProgram() + "]" + " PC = " + pcb.pc_);
+							break;
+						}
+						else if(this.interruptionFlag == 7) { //FASE 6 E 7 ->  requisição envio InOut
+							System.out.println("Programa [" + pcb.getIdProg() + " - " + pcb.getProgram() + "] foi enviado para o gerenciador de E/S");
+							if (this.reg[8] == 1){
+								if(this.reg[9] != 0) {
+									vm.ioThread.addNewRequest(this.pcb);
+									pcb.nextPC();
+								}
+								else{
+									inOutOperationInterruption();
+								}
+							}
+							else if (this.reg[8]==2){
+								if(this.reg[9] != 0) {
+									vm.ioThread.addNewRequest(this.pcb);
+									pcb.nextPC();
+								}
+								else{
+									inOutOperationInterruption();
+								}
+							}
+							else{
+								invalidOpcodeInterruption(ir);
+							}
+							break;
+						}
+						else if (this.interruptionFlag == 9){ //FASE 6 E 7 -> requisicao retorno do InOut
+							vm.schedulerManager.addFirstInQueue(this.pcb);
+						}
+
+					}
+				}
+				cpuIdle.release();
+			}
+		}
+
+		//endregion
+	}
+
+	public class VM{
+
+		//region Attributes
+		public int memorySize;
+		public int rr_q;
+		public Word[] m;
+		public CPU cpu;
+		public MemoryManager memoryManager;
+		public SchedulerManager schedulerManager;
+		public InOutManager ioThread; //FASE 6 E 7 -> adicao controle de IO
+		//endregion
+
+
+		//region constructor
+		public VM() {
+			// memória
+			int tamFrame = 16;
+			this.memorySize = 1024;
+			this.m = new Word[memorySize]; // m ee a memoria
+			for (int i = 0; i < memorySize; i++) { m[i] = new Word(OpcodeEnum.Opcode.___, -1, -1, -1); }
+
+			//START THREADS
+			this.memoryManager = new MemoryManager(memorySize, tamFrame);
+			this.schedulerManager = new SchedulerManager();
+			this.cpu = new CPU(m);
+			this.ioThread = new InOutManager();
+
+			this.rr_q = 5;
+		}
+		//endregion
+
+		//region methods
+		public boolean validRegister(int reg_n) {
+			return (reg_n >= 0 && reg_n <= 9);
+		}
+		//endregion
+
+	}
 
 	public class InOutManager extends Thread { //FASE 6 E 7 -> classe e thread nova
 
@@ -967,7 +825,7 @@ public class Systems {
 		private ProcessControlBlock programBeingExecuted; // programa da fila sendo executado
         private ArrayList<ProcessControlBlock> consoleRequestQueue; //fila de pedidos do console
 
-        private Semaphore shellTrapInReady = new Semaphore(0); //FASE 6, Menu chama o IOManager, e em seguida ja chama o getReturnShell. Dentro tem o semaforo que espera ter o retorno pra retornar o valor
+        private final Semaphore shellTrapInReady = new Semaphore(0); //FASE 6, Menu chama o IOManager, e em seguida ja chama o getReturnShell. Dentro tem o semaforo que espera ter o retorno pra retornar o valor
         private boolean shellRequest; //controle de solicitacao do shell
         private int returnShell = -1; // variavel de retorno do shell
         private String shellMessage = ""; // mensagem que aparece para a solicitacao do input
@@ -991,7 +849,7 @@ public class Systems {
 					this.programBeingExecuted = this.nextBlocked();
 					switch (this.programBeingExecuted.reg[8]) {
 						case 1:
-							vm.m[programBeingExecuted.reg[9]].opc = Opcode.DATA;
+							vm.m[programBeingExecuted.reg[9]].opc = OpcodeEnum.Opcode.DATA;
 							try {
 								//FASE 6 -> DIRECT MEMORY ACCESS
 								vm.m[programBeingExecuted.thisGetLogicAddress(programBeingExecuted.reg[9])].p = Trap_IN(TypeIORequest.CONSOLE);
@@ -1183,7 +1041,7 @@ public class Systems {
 			setFrames(new Frame[(memorySize / sizeFrame)]);
 			setProgramsInMemory(new ArrayList<>());
 			for (int i = 0; i < memorySize/ sizeFrame; i++) {
-				getFrames()[i] = new Frame(i,true,Progs.___,0);
+				getFrames()[i] = new Frame(i,true, Programs.Progs.___,0);
 			}
 			this.setSizeFrame(sizeFrame);
 		}
@@ -1282,7 +1140,7 @@ public class Systems {
 			return false;
 		}
 
-		public void framesAllocation(ArrayList<Integer> frames_reservados, Word[] p, Progs nomePrograma){
+		public void framesAllocation(ArrayList<Integer> frames_reservados, Word[] p, Programs.Progs nomePrograma){
 			int cont=0;
 			int max_id = getNextId();
 			for (Integer frames_reservado : frames_reservados) {
@@ -1298,7 +1156,7 @@ public class Systems {
 			vm.memoryManager.getProgramsInMemory().add(new ProcessControlBlock(nomePrograma,max_id,frames_reservados));
 		}
 
-		public void allocateMoreFrames(ArrayList<Integer> frames_reservados, int idProg, Progs nomePrograma){
+		public void allocateMoreFrames(ArrayList<Integer> frames_reservados, int idProg, Programs.Progs nomePrograma){
 			int cont=0;
 			for (Integer frames_reservado : frames_reservados) {
 				vm.memoryManager.getFrames()[frames_reservado].setPrograma(nomePrograma, idProg);
@@ -1320,7 +1178,7 @@ public class Systems {
 
 		private void resetFrames(Frame frame) {
 			for (int j = (frame.getIdFrame() * vm.memoryManager.getframeSize()); j < (((frame.getIdFrame() + 1) * vm.memoryManager.getframeSize()) - 1); j++) {
-				vm.m[j].opc = Opcode.___;
+				vm.m[j].opc = OpcodeEnum.Opcode.___;
 				vm.m[j].r1 = -1;
 				vm.m[j].r2 = -1;
 				vm.m[j].p = -1;
@@ -1365,7 +1223,7 @@ public class Systems {
 			private int idProg;
 
 			//contrutor
-			public Frame(int idFrame, boolean emptyFrame, Progs nomeProg, int idProg) {
+			public Frame(int idFrame, boolean emptyFrame, Programs.Progs nomeProg, int idProg) {
 				this.setIdFrame(idFrame);
 				this.setEmptyFrame(emptyFrame);
 				this.setIdProg(idProg);
@@ -1380,7 +1238,7 @@ public class Systems {
 				this.emptyFrame = emptyFrame;
 			}
 
-			public void setPrograma (Progs nomeProg, int idProg){
+			public void setPrograma (Programs.Progs nomeProg, int idProg){
 				this.setIdProg(idProg);
 				this.setEmptyFrame(false);
 			}
@@ -1407,7 +1265,7 @@ public class Systems {
 	}
 
 	public class ProcessControlBlock {
-		private Progs program;
+		private Programs.Progs program;
 		private int idProg;
 		private ArrayList<Integer> framesProg;
 		private final int frameSize;
@@ -1418,7 +1276,7 @@ public class Systems {
 		private ProgramState programState;
 
 		//construtor
-		public ProcessControlBlock(Progs program, int idProg, ArrayList<Integer> framesProg){
+		public ProcessControlBlock(Programs.Progs program, int idProg, ArrayList<Integer> framesProg){
 			this.setProgram(program);
 			this.setIdProg(idProg);
 			this.setFramesProg(new ArrayList<>());
@@ -1539,11 +1397,11 @@ public class Systems {
 			this.framesProg = framesProg;
 		}
 
-		public Progs getProgram() {
+		public Programs.Progs getProgram() {
 			return program;
 		}
 
-		public void setProgram(Progs program) {
+		public void setProgram(Programs.Progs program) {
 			this.program = program;
 		}
 
@@ -1555,84 +1413,33 @@ public class Systems {
 
 	//endregion
 
-
-
-	// -------------------------------------------  fim classes e funcoes auxiliares
-
-	//  -------------------------------------------- programas aa disposicao para copiar na memoria (vide aux.carga)
-	public class Programas { //TODO PROGRAMA ADICIONADO DEVE SER INSERID NO ENUMERATION "Progs".
-		public Word[] progMinimo = new Word[] {
-				new Word(Opcode.LDI, 0, -1, 999),
-				new Word(Opcode.STD, 0, -1, 10),
-				new Word(Opcode.STD, 0, -1, 11),
-				new Word(Opcode.STD, 0, -1, 12),
-				new Word(Opcode.STD, 0, -1, 13),
-				new Word(Opcode.STD, 0, -1, 14),
-				new Word(Opcode.STOP, -1, -1, -1) };
-
-		//TODO BACKLOG inserir o esquema de trap no programa
-		public Word[] fibonacci10 = new Word[] { // mesmo que prog exemplo, so que usa r0 no lugar de r8
-				new Word(Opcode.LDI, 1, -1, 0),
-				new Word(Opcode.STD, 1, -1, 20), //50
-				new Word(Opcode.LDI, 2, -1, 1),
-				new Word(Opcode.STD, 2, -1, 21), //51
-				new Word(Opcode.LDI, 0, -1, 22), //52
-				new Word(Opcode.LDI, 6, -1, 6),
-				new Word(Opcode.LDI, 7, -1, 31), //61
-				new Word(Opcode.LDI, 3, -1, 0),
-				new Word(Opcode.ADD, 3, 1, -1),
-				new Word(Opcode.LDI, 1, -1, 0),
-				new Word(Opcode.ADD, 1, 2, -1),
-				new Word(Opcode.ADD, 2, 3, -1),
-				new Word(Opcode.STX, 0, 2, -1),
-				new Word(Opcode.ADDI, 0, -1, 1),
-				new Word(Opcode.SUB, 7, 0, -1),
-				new Word(Opcode.JMPIG, 6, 7, -1),
-				new Word(Opcode.STOP, -1, -1, -1)};
-
-
-		public Word[] p3 = new Word[]{
-				new Word(Opcode.LDI, 8, -1, 1), // joga o valor 10 no Registrador1
-				new Word(Opcode.LDI, 9, -1, 50), // setta a posicao onde vai armazenar o valor inputado
-            	new Word(Opcode.TRAP,-1,-1,-1),// chama trap para IN
-				//new Word(Opcode.STD, 9, -1, 50), // coloca o valor do Registrado9 na posição 20 da memoria
-				new Word(Opcode.LDD,1,-1,50), // ler da memoria e colocar no registrador
-
-				new Word(Opcode.LDD,2,-1,50), // ler da memoria e colocar no registrador
-				new Word(Opcode.LDI, 0,-1,19), // numero da linha que será pulado no JMP abaixo
-				new Word(Opcode.JMPIL,0,2,-1),// comparar se registrador < 0
-				new Word(Opcode.SUBI,2,-1,1), //r2 = 9
-				// inicio loop
-				new Word(Opcode.ADDI,2,-1,1), // readiona 1 pra que o loop fique certo
-
-				new Word(Opcode.SUBI,2,-1,1), // subtrai pra fazer r1*r2
-				new Word(Opcode.MULT,1,2,-1), // multiplica
-				new Word(Opcode.SUBI,2,-1,1), // subtrai pra comparar a zero e possivelmente parar
-				new Word(Opcode.JMPIGM,-1,2,8),	// compara a zero para ver se precisa parar   x = 6
-				// fim loop
-      			new Word(Opcode.STD,1,-1,50), // acaba o loop, joga o valor de r1 (resultado do fatorial) na posicao 20 da memoria
-
-				new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
-				new Word(Opcode.LDI, 9, -1,50), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
-				new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
-				new Word(Opcode.STOP,-1,-1,-1), // acaba o programa
-				new Word(Opcode.LDI,1,-1,-1), // (se no primeiro jmp, o input for -1, vem pra cá) joga o valor de -1 no registrador 1
-
-				new Word(Opcode.STD,1,-1,50), // armazena no valor de r1 na posicao 20 da memoria
-				new Word(Opcode.LDI,8,-1,2), // setta o registrador 8 para o valor de OUT
-				new Word(Opcode.LDI, 9, -1,50), // poe no registrador 9 a posicao de memoria que vai ser acessada no TRAP
-				new Word(Opcode.TRAP, -1,-1,-1), // TRAP OUT
-				new Word(Opcode.STOP,-1,-1,-1)	// acaba o programa
-		};
-
-		//todo backlog bubblesort
-		//public Word[] BubbleSort = new Word{
-
-		// le a quantidade de elementos
-		// armazena os elementos na memoria (ex: 50,51,52,53,54)
-		//
-
-		//}
+	//region testes
+	public void test_prog_minimo(){
+		Programs.Aux aux = new Programs.Aux();
+		Word[] p = new Programs.Programas().progMinimo;
+		aux.memoryLoad(p, Programs.Progs.PROG_MINIMO, vm);
 	}
-}
 
+	public void test_fibonacci10(){
+		Programs.Aux aux = new Programs.Aux();
+		Word[] p = new Programs.Programas().fibonacci10;
+		aux.memoryLoad(p, Programs.Progs.FIBBONACI10, vm);
+	}
+
+	// teste p3
+
+	public void test_fatorial(){
+		Programs.Aux aux = new Programs.Aux();
+		Word[] p = new Programs.Programas().p3;
+		aux.memoryLoad(p, Programs.Progs.FATORIAL, vm);
+	}
+
+	public void test_bubble_sort(){
+		Programs.Aux aux = new Programs.Aux();
+		Word[] p = new Programs.Programas().p3;
+		aux.memoryLoad(p, Programs.Progs.BUBBLE_SORT, vm);
+	}
+
+	//endregion
+
+}
